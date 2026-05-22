@@ -163,30 +163,78 @@ sock.ev.on('group-participants.update', async (anu) => {
     await new Promise(r => setTimeout(r, 1500));
 
     try {
-        let metadata = groupCache.get(jid) || await sock.groupMetadata(jid).catch(() => ({ subject: "this group" }));
+        let metadata = groupCache.get(jid) || 
+        await sock.groupMetadata(jid).catch(() => ({
+            subject: "this group"
+        }));
+
         const groupName = metadata.subject;
 
         for (const num of anu.participants) {
-            // SAFE EXTRACTION: Ensure num is a string and handle potential JID formats
-            const participantJid = typeof num === 'string' ? num : num.id;
-            if (participantJid === sock.user.id.split(':')[0] + '@s.whatsapp.net') continue;
 
-            const userTag = participantJid.split('@')[0];
+            // SAFE EXTRACTION
+            const participantJid =
+                typeof num === 'string'
+                ? num
+                : num.id;
+
+            if (
+                participantJid ===
+                sock.user.id.split(':')[0] +
+                '@s.whatsapp.net'
+            ) continue;
+
+            const userTag =
+                participantJid.split('@')[0];
 
             if (anu.action === 'add') {
+
                 await sock.sendMessage(jid, {
-                    text: `👋 @${userTag}\n\n🤖 *Welcome to ${groupName}*\n\nSuccess in your Post-UTME starts here.\n\n_Powered by Flexi Digital Academy_ 🚀`,
+                    text:
+`👋 Hello @${userTag}
+
+🎓 *Welcome to ${groupName}*
+
+📚 _For 2026 JAMB Candidates Only_
+
+Daily revision based on the JAMB syllabus with intensive brainstorming sessions ✍️📖
+
+⚠️ *GROUP RULES*
+• Posting of links is strictly prohibited
+• Avoid using stickers during lessons
+• Stay on topic during classes
+• Do not tag the group in your status
+• Be active in group activities
+• Inactive members may be removed
+• Feel free to invite serious SSCE/UTME candidates
+
+💡 Read, learn, participate and succeed.
+
+_Powered by Flexi Educational Consult_ 🚀`,
                     mentions: [participantJid]
                 });
+
             } else if (anu.action === 'remove') {
+
                 await sock.sendMessage(jid, {
-                    text: `👋 Goodbye @${userTag}\n\nWe wish you success ahead from *${groupName}* 🎓`,
+                    text:
+`👋 @${userTag} has left *${groupName}*
+
+We appreciate the time spent with us and wish you success in your academics and future examinations 🎓✨
+
+Keep striving for excellence and never stop learning.
+
+_Flexi Educational Consult_ 🚀`,
                     mentions: [participantJid]
                 });
             }
         }
+
     } catch (err) {
-        console.log("Automation Error:", err.message);
+        console.log(
+            "Automation Error:",
+            err.message
+        );
     }
 });
 
