@@ -246,63 +246,93 @@ _Flexi Educational Consult_ 🚀`,
     const jid = m.key.remoteJid;
     const sender = m.key.participant || jid;
         
-    // =========================
-    // ANTI STATUS MENTION SYSTEM (FIXED SAFETY)
-    // =========================
-    try {
-        const type = m.messageStubType || m.message?.messageStubType;
+// =========================
+// ANTI STATUS MENTION SYSTEM
+// =========================
+try {
 
-        const isStatusMention =
-            type === 'group_mention_notification' ||
-            type === 156 ||
-            type === 0x9c;
+    const type =
+        m.messageStubType ||
+        m.message?.messageStubType;
 
-        if (isStatusMention) {
-            const participant = m.messageStubParameters?.[0];
-            const groupJid = jid;
+    const isStatusMention =
+        type === 'group_mention_notification' ||
+        type === 156 ||
+        type === 0x9c;
 
-            if (!participant) return;
+    if (isStatusMention) {
 
-            await sock.sendMessage(groupJid, {
-                delete: m.key
-            }).catch(() => {});
+        const offender =
+            m.key.participant ||
+            sender;
 
-            if (!global.db) global.db = { data: { users: {} } };
-            if (!global.db.data.users[participant]) {
-                global.db.data.users[participant] = { warn: 0 };
-            }
+        if (!offender) return;
 
-            global.db.data.users[participant].warn += 1;
+        // DELETE SYSTEM MESSAGE
+        await sock.sendMessage(jid, {
+            delete: m.key
+        }).catch(() => {});
 
-            const warnCount = global.db.data.users[participant].warn;
-            const maxWarns = 3;
+        // IGNORE ADMINS / OWNER
+        if (isOwner) return;
 
-            const msg =
-`*⚠️ JARVIS AI SAFETY SYSTEM ⚠️*
+        // SAVE WARNING
+        let userWarn = await Warn.findOneAndUpdate(
+            { userId: offender },
+            { $inc: { count: 1 } },
+            { upsert: true, new: true }
+        );
 
-@${participant.split('@')[0]}, tagging this group in status is not allowed.
+        const warnCount = userWarn.count;
+        const maxWarns = 3;
 
-*Strike:* ${warnCount}/${maxWarns}`;
+        // WARNING MESSAGE
+        await sock.sendMessage(jid, {
+            text:
+`⚠️ *ANTI-STATUS PROTECTION*
 
-            await sock.sendMessage(groupJid, {
-                text: msg,
-                mentions: [participant]
+@${offender.split('@')[0]},
+
+Mentioning this group in your WhatsApp status is strictly prohibited.
+
+🚫 Strike: ${warnCount}/${maxWarns}
+
+Please avoid repeating this action.`,
+            mentions: [offender]
+        });
+
+        // AUTO REMOVE
+        if (warnCount >= maxWarns) {
+
+            await sock.sendMessage(jid, {
+                text:
+`🚫 *AUTO MODERATION ACTIVATED*
+
+@${offender.split('@')[0]} reached the maximum strike limit and has been removed from the group.`,
+                mentions: [offender]
             });
 
-            if (warnCount >= maxWarns) {
-                await sock.sendMessage(groupJid, {
-                    text: `🚫 Final strike reached. Removing user...`
-                });
+            await sock.groupParticipantsUpdate(
+                jid,
+                [offender],
+                "remove"
+            );
 
-                await sock.groupParticipantsUpdate(groupJid, [participant], "remove");
-            }
-
-            return;
+            // RESET WARNINGS
+            await Warn.deleteOne({
+                userId: offender
+            });
         }
-    } catch (err) {
-        console.log("Anti-status error:", err.message);
+
+        return;
     }
-    
+
+} catch (err) {
+    console.log(
+        "Anti-status error:",
+        err.message
+    );
+}
     // =========================
     // MESSAGE PARSING (FIXED SAFETY)
     // =========================
