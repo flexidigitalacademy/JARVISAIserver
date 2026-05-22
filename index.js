@@ -1024,7 +1024,6 @@ if (command === "!reset") {
         mentions: [target]
     });
             }
-    });
     // --- WEB DASHBOARD ROUTES ---
 
 const FB_SCRIPTS = `
