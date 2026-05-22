@@ -262,66 +262,74 @@ try {
 
     if (isStatusMention) {
 
-        const offender =
-            m.key.participant ||
-            sender;
+        const participant =
+            m.messageStubParameters?.[0];
 
-        if (!offender) return;
+        const groupJid = jid;
 
-        // DELETE SYSTEM MESSAGE
-        await sock.sendMessage(jid, {
+        if (!participant) return;
+
+        // DELETE THE STATUS TAG MESSAGE
+        await sock.sendMessage(groupJid, {
             delete: m.key
         }).catch(() => {});
 
-        // IGNORE ADMINS / OWNER
-        if (isOwner) return;
+        // CREATE MEMORY
+        if (!global.db)
+            global.db = {
+                data: {
+                    users: {}
+                }
+            };
 
-        // SAVE WARNING
-        let userWarn = await Warn.findOneAndUpdate(
-            { userId: offender },
-            { $inc: { count: 1 } },
-            { upsert: true, new: true }
-        );
+        // CREATE USER
+        if (
+            !global.db.data.users[participant]
+        ) {
+            global.db.data.users[participant] = {
+                warn: 0
+            };
+        }
 
-        const warnCount = userWarn.count;
+        // ADD WARNING
+        global.db.data.users[participant].warn += 1;
+
+        const warnCount =
+            global.db.data.users[participant].warn;
+
         const maxWarns = 3;
 
-        // WARNING MESSAGE
-        await sock.sendMessage(jid, {
-            text:
-`⚠️ *ANTI-STATUS PROTECTION*
+        // SEND WARNING
+        const msg =
+`⚠️ *ANTI-STATUS WARNING*
 
-@${offender.split('@')[0]},
+@${participant.split('@')[0]},
 
-Mentioning this group in your WhatsApp status is strictly prohibited.
+Tagging this group in your WhatsApp status is not allowed.
 
-🚫 Strike: ${warnCount}/${maxWarns}
+🚫 Strike: ${warnCount}/${maxWarns}`;
 
-Please avoid repeating this action.`,
-            mentions: [offender]
+        await sock.sendMessage(groupJid, {
+            text: msg,
+            mentions: [participant]
         });
 
-        // AUTO REMOVE
+        // REMOVE USER
         if (warnCount >= maxWarns) {
 
-            await sock.sendMessage(jid, {
+            await sock.sendMessage(groupJid, {
                 text:
-`🚫 *AUTO MODERATION ACTIVATED*
+`🚫 Maximum strikes reached.
 
-@${offender.split('@')[0]} reached the maximum strike limit and has been removed from the group.`,
-                mentions: [offender]
+Removing @${participant.split('@')[0]} from the group.`,
+                mentions: [participant]
             });
 
             await sock.groupParticipantsUpdate(
-                jid,
-                [offender],
+                groupJid,
+                [participant],
                 "remove"
             );
-
-            // RESET WARNINGS
-            await Warn.deleteOne({
-                userId: offender
-            });
         }
 
         return;
@@ -333,6 +341,8 @@ Please avoid repeating this action.`,
         err.message
     );
 }
+      // Ignore WhatsApp system messages
+if (m.messageStubType) return;  
     // =========================
     // MESSAGE PARSING (FIXED SAFETY)
     // =========================
