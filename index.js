@@ -156,64 +156,40 @@ async function startJARVIS() {
     });
 
     // --- GROUP WELCOME / GOODBYE ---
-    sock.ev.on('group-participants.update', async (anu) => {
-        const jid = anu.id;
-        if (!jid) return;
+sock.ev.on('group-participants.update', async (anu) => {
+    const jid = anu.id;
+    if (!jid) return;
 
-        await new Promise(r => setTimeout(r, 1500));
+    await new Promise(r => setTimeout(r, 1500));
 
-        try {
-            let metadata = groupCache.get(jid);
+    try {
+        let metadata = groupCache.get(jid) || await sock.groupMetadata(jid).catch(() => ({ subject: "this group" }));
+        const groupName = metadata.subject;
 
-            if (!metadata) {
-                metadata = await sock.groupMetadata(jid)
-                    .catch(() => ({ subject: "this group" }));
+        for (const num of anu.participants) {
+            // SAFE EXTRACTION: Ensure num is a string and handle potential JID formats
+            const participantJid = typeof num === 'string' ? num : num.id;
+            if (participantJid === sock.user.id.split(':')[0] + '@s.whatsapp.net') continue;
+
+            const userTag = participantJid.split('@')[0];
+
+            if (anu.action === 'add') {
+                await sock.sendMessage(jid, {
+                    text: `👋 @${userTag}\n\n🤖 *Welcome to ${groupName}*\n\nSuccess in your Post-UTME starts here.\n\n_Powered by Flexi Digital Academy_ 🚀`,
+                    mentions: [participantJid]
+                });
+            } else if (anu.action === 'remove') {
+                await sock.sendMessage(jid, {
+                    text: `👋 Goodbye @${userTag}\n\nWe wish you success ahead from *${groupName}* 🎓`,
+                    mentions: [participantJid]
+                });
             }
-
-            const groupName = metadata.subject;
-
-            for (const num of anu.participants) {
-                if (num === sock.user.id.split(':')[0] + '@s.whatsapp.net') continue;
-
-                const userTag = num.split('@')[0];
-
-                if (anu.action === 'add') {
-                    await sock.sendMessage(jid, {
-                        text:
-`👋 @${userTag}
-
-🤖 *Welcome to ${groupName}*
-
-Success in your Post-UTME starts here.
-
-_Powered by ${POWERED_BY}_ 🚀`,
-                        mentions: [num]
-                    });
-
-                } else if (anu.action === 'remove') {
-                    await sock.sendMessage(jid, {
-                        text:
-`👋 Goodbye @${userTag}
-
-We wish you success ahead from *${groupName}* 🎓`,
-                        mentions: [num]
-                    });
-                }
-            }
-        } catch (err) {
-            console.log("Automation Error:", err.message);
         }
-    });
-
-    sock.ev.on('messages.upsert', async ({ messages }) => {
-    const m = messages[0];
-    if (!m.message || m.key.fromMe) return;
-
-    const jid = m.key.remoteJid;
-    const sender = m.key.participant || m.key.remoteJid;
-
-    activityTracker.set(sender, Date.now());
-
+    } catch (err) {
+        console.log("Automation Error:", err.message);
+    }
+});
+    
     // =========================
     // ANTI STATUS MENTION SYSTEM (FIXED SAFETY)
     // =========================
