@@ -45,7 +45,7 @@ db = admin.firestore();
 // PAYMENT SERVER URL
 // ===============================
 const PAYMENT_SERVER_URL =
-    "https://jarvis-payments-server.onrender.com";
+    "https://jarvis-payments-server-1.onrender.com";
 
 // ===============================
 // HANDLE !PAY COMMAND
