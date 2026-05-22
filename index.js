@@ -189,7 +189,15 @@ sock.ev.on('group-participants.update', async (anu) => {
         console.log("Automation Error:", err.message);
     }
 });
-    
+
+    sock.ev.on('messages.upsert', async ({ messages }) => {
+
+    const m = messages[0];
+    if (!m.message) return;
+
+    const jid = m.key.remoteJid;
+    const sender = m.key.participant || jid;
+        
     // =========================
     // ANTI STATUS MENTION SYSTEM (FIXED SAFETY)
     // =========================
@@ -246,7 +254,7 @@ sock.ev.on('group-participants.update', async (anu) => {
     } catch (err) {
         console.log("Anti-status error:", err.message);
     }
-
+    });
     // =========================
     // MESSAGE PARSING (FIXED SAFETY)
     // =========================
