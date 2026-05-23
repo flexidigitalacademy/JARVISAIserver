@@ -13,6 +13,15 @@ require("./mediaHandler");
 const moderationHandler =
 require("./moderationHandler");
 
+const watchdogHandler =
+require("./watchdogHandler");
+
+const {
+    updateOnline
+} = require(
+    "../commands/adminCommands"
+);
+
 // =====================================================
 // TEXT EXTRACTOR
 // =====================================================
@@ -76,6 +85,16 @@ module.exports = (sock) => {
                 const text =
                     extractText(m);
 
+                // =============================================
+                // UPDATE ONLINE TRACKER
+                // =============================================
+
+                updateOnline(sender);
+
+                // =============================================
+                // CONTEXT
+                // =============================================
+
                 const ctx = {
 
                     sock,
@@ -86,18 +105,52 @@ module.exports = (sock) => {
                 };
 
                 // =============================================
-                // RUN HANDLERS
+                // WATCHDOG PROTECTION
                 // =============================================
 
-                await moderationHandler(ctx);
+                await watchdogHandler(
+                    ctx
+                );
 
-                await mediaHandler(ctx);
+                // =============================================
+                // MODERATION
+                // =============================================
 
-                await reactionHandler(ctx);
+                await moderationHandler(
+                    ctx
+                );
 
-                await commandHandler(ctx);
+                // =============================================
+                // MEDIA
+                // =============================================
 
-                await aiHandler(ctx);
+                await mediaHandler(
+                    ctx
+                );
+
+                // =============================================
+                // REACTIONS
+                // =============================================
+
+                await reactionHandler(
+                    ctx
+                );
+
+                // =============================================
+                // COMMANDS
+                // =============================================
+
+                await commandHandler(
+                    ctx
+                );
+
+                // =============================================
+                // AI CHAT
+                // =============================================
+
+                await aiHandler(
+                    ctx
+                );
 
             } catch (err) {
 
