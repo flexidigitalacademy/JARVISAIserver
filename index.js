@@ -267,7 +267,7 @@ async function startJARVIS() {
     });
 
 if (!sock.authState.creds.registered) {
-    const phoneNumber = "2347051768946"; // Your number without + or spaces
+    const phoneNumber = "2347033855206"; // Your number without + or spaces
     setTimeout(async () => {
         const code = await sock.requestPairingCode(phoneNumber);
         console.log(`📱 YOUR PAIRING CODE: ${code}`);
