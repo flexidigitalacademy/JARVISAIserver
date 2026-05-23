@@ -254,9 +254,9 @@ async function startJARVIS() {
         }),
 
         browser: [
-            "Mac OS",
+            "Ubuntu",
             "Chrome",
-            "125.0.0"
+            "20.0.04"
         ],
 
         connectTimeoutMs: 60000, 
@@ -266,7 +266,14 @@ async function startJARVIS() {
             false
     });
 
-
+if (!sock.authState.creds.registered) {
+    const phoneNumber = "2347051768946"; // Your number without + or spaces
+    setTimeout(async () => {
+        const code = await sock.requestPairingCode(phoneNumber);
+        console.log(`📱 YOUR PAIRING CODE: ${code}`);
+    }, 3000); // Wait 3 seconds to ensure socket is ready
+}
+    
     // =========================
     // SAVE CREDS
     // =========================
