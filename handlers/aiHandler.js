@@ -4,7 +4,8 @@ module.exports = async ({
     sock,
     m,
     text,
-    jid
+    jid,
+    sender
 }) => {
 
     try {
@@ -12,12 +13,56 @@ module.exports = async ({
         if (!text) return;
 
         // =============================================
-        // BLOCK COMMANDS
+        // STOP COMMANDS
         // =============================================
 
         if (
             text.startsWith("!")
         ) return;
+
+        // =============================================
+        // STOP BOT MESSAGES
+        // =============================================
+
+        if (
+            m.key.fromMe
+        ) return;
+
+        // =============================================
+        // STOP STATUS
+        // =============================================
+
+        if (
+            jid === "status@broadcast"
+        ) return;
+
+        // =============================================
+        // STOP MEDIA AUTO-REPLIES
+        // =============================================
+
+        const isImage =
+            !!m.message?.imageMessage;
+
+        const isVideo =
+            !!m.message?.videoMessage;
+
+        const isSticker =
+            !!m.message?.stickerMessage;
+
+        const isDocument =
+            !!m.message?.documentMessage;
+
+        // Ignore media completely
+        if (
+            isImage ||
+            isVideo ||
+            isSticker ||
+            isDocument
+        ) return;
+
+        // =============================================
+        // LOWERCASE
+        // =============================================
 
         const lower =
             text.toLowerCase();
@@ -30,9 +75,19 @@ module.exports = async ({
 
             lower.includes("jarvis") ||
 
+            lower.startsWith("ai ") ||
+
             lower.includes("@ai");
 
         if (!isAiTrigger) return;
+
+        // =============================================
+        // IGNORE SHORT TRIGGERS
+        // =============================================
+
+        if (
+            text.trim().length < 4
+        ) return;
 
         // =============================================
         // REACTION
@@ -75,6 +130,18 @@ module.exports = async ({
             response.data?.result ||
 
             "⚠️ AI service unavailable.";
+
+        // =============================================
+        // VALIDATE RESPONSE
+        // =============================================
+
+        if (
+            !reply ||
+            typeof reply !== "string"
+        ) {
+
+            return;
+        }
 
         // =============================================
         // SEND RESPONSE
