@@ -242,7 +242,8 @@ _Flexi Educational Consult_ 🚀`,
 
     const m = messages[0];
     if (!m.message) return;
-
+    if (m.key.fromMe) return;
+        
     const jid = m.key.remoteJid;
     const sender = m.key.participant || jid;
         
