@@ -698,7 +698,32 @@ if (command === "!listadmins") {
     }
 }
 
+if (command === "!music") {
+    const songQuery = args.slice(1).join(' ');
+    if (!songQuery) return sock.sendMessage(jid, { text: "Please specify a song name." });
 
+    await sock.sendMessage(jid, { text: "🔍 Searching for your music..." });
+
+    try {
+        // Calling your dedicated Music Server
+        const response = await axios.post('https://your-music-server.onrender.com/fetch-audio', {
+            query: songQuery
+        }, { 
+            responseType: 'arraybuffer',
+            timeout: 60000 // 60s timeout for download/transcode
+        });
+
+        await sock.sendMessage(jid, { 
+            audio: { data: response.data }, 
+            mimetype: 'audio/mpeg', // or 'audio/mp4'
+            ptt: true 
+        });
+    } catch (error) {
+        console.error("Music Server Error:", error);
+        await sock.sendMessage(jid, { text: "❌ Failed to retrieve the music. Please try again." });
+    }
+}
+        
 // --- MENU / HELP COMMAND ---
 if (command === "!menu" || command === "!help") {
     const menuText = `🤖 *${BOT_NAME} SYSTEM MENU*
