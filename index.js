@@ -1,7 +1,7 @@
-const {
-    default: makeWASocket,
-    useMultiFileAuthState,
-    fetchLatestBaileysVersion,
+const { 
+    default: makeWASocket, 
+    useMultiFileAuthState, 
+    fetchLatestBaileysVersion, 
     DisconnectReason,
     downloadContentFromMessage
 } = require('@whiskeysockets/baileys');
@@ -11,63 +11,39 @@ const pino = require('pino');
 const express = require('express');
 const mongoose = require('mongoose');
 const axios = require('axios');
-const admin = require('firebase-admin');
 
 require('dotenv').config();
-
 const quizEngine = require('./quizEngine');
 const grammarWatchdog = require('./grammarWatchdog');
-const paymentHandler = require('./paymentHandler');
-const commands = require('./commands');
+const paymentHandler = require('./paymentHandler'); // 👈 ADD THIS LINE HERE
 
 const app = express();
 const port = process.env.PORT || 3000;
-
 app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
 
+// --- SYSTEM GUARDS ---
+process.on('uncaughtException', (err) => console.log('⚠️ System Error:', err.message));
+process.on('unhandledRejection', (err) => console.log('⚠️ Rejection Guard:', err.message));
 
-// =====================================
-// SYSTEM GUARDS
-// =====================================
-process.on('uncaughtException', (err) => {
-    console.log('⚠️ System Error:', err.message);
-});
-
-process.on('unhandledRejection', (err) => {
-    console.log('⚠️ Rejection Guard:', err.message);
-});
-
-
-// =====================================
-// CONFIG
-// =====================================
-const OWNER_NUMBER = "2347051768946";
+// --- CONFIG ---
+const OWNER_NUMBER = "2347051768946"; 
 const BOT_NAME = "JARVIS AI";
 const POWERED_BY = "Flexi Digital Academy";
-
-const MONGO_URI =
-    "mongodb+srv://JarvisAI:flexisystems2000@cluster0.7g5odvt.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
+const MONGO_URI = "mongodb+srv://JarvisAI:flexisystems2000@cluster0.7g5odvt.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
 
 const firebaseConfig = {
-    apiKey: "AIzaSyCoGX2bXlvuwcJY8oyW6_J42fgxfH5vZao",
-    authDomain: "jarvisai-1a594.firebaseapp.com",
-    projectId: "jarvisai-1a594",
-    storageBucket: "jarvisai-1a594.firebasestorage.app",
-    messagingSenderId: "868499596875",
-    appId: "1:868499596875:web:4bf592934f6086be8a4fce"
+  apiKey: "AIzaSyCoGX2bXlvuwcJY8oyW6_J42fgxfH5vZao",
+  authDomain: "jarvisai-1a594.firebaseapp.com",
+  projectId: "jarvisai-1a594",
+  storageBucket: "jarvisai-1a594.firebasestorage.app",
+  messagingSenderId: "868499596875",
+  appId: "1:868499596875:web:4bf592934f6086be8a4fce"
 };
 
-
-// =====================================
-// DATABASE (MONGODB)
-// =====================================
+// --- DATABASE ---
 const WarnSchema = new mongoose.Schema({
     userId: String,
-    count: {
-        type: Number,
-        default: 0
-    }
+    count: { type: Number, default: 0 }
 });
 
 const ConfigSchema = new mongoose.Schema({
@@ -79,337 +55,149 @@ const Warn = mongoose.model('Warn', WarnSchema);
 const Config = mongoose.model('Config', ConfigSchema);
 
 mongoose.connect(MONGO_URI)
-    .then(() => {
-        console.log("✅ MongoDB Connected");
-    })
-    .catch((err) => {
-        console.log("❌ DB Error:", err.message);
-    });
+    .then(() => console.log("✅ MongoDB Connected"))
+    .catch(err => console.log("❌ DB Error:", err.message));
 
 
-// =====================================
-// FIREBASE (FIXED)
-// =====================================
-if (!admin.apps.length) {
-
-    const serviceAccount = JSON.parse(
-        process.env.FIREBASE_SERVICE_ACCOUNT
-    );
-
-    admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-    });
-
-    console.log("✅ Firebase Connected");
-}
-
-const db = admin.firestore();
-
-
-// =====================================
-// AI FUNCTION
-// =====================================
-async function askAI(
-    prompt,
-    base64Media = null,
-    isPDF = false
-) {
+// --- AI FUNCTION ---
+async function askAI(prompt, base64Media = null, isPDF = false) {
     try {
-
-        const endpoint =
-            isPDF ? 'pdf' : 'ai';
+        const endpoint = isPDF ? 'pdf' : 'ai';
 
         const payload = {
             prompt,
-            ...(isPDF
-                ? { fileBase64: base64Media }
-                : { image: base64Media })
+            ...(isPDF ? { fileBase64: base64Media } : { image: base64Media })
         };
 
         const res = await axios.post(
-            `https://flexieduconsult-ai-link-z60r.onrender.com/${endpoint}`,
+            `https://flexieduconsult-ai-link.onrender.com/${endpoint}`,
             payload
         );
 
-        return (
-            res.data?.result ||
-            "🤖 No response from AI"
-        );
-
+        return res.data?.result || "🤖 No response from AI";
     } catch (err) {
-
-        console.log(
-            "AI LINK ERROR:",
-            err.message
-        );
-
+        console.log("AI LINK ERROR:", err.message);
         return "⚠️ AI service unavailable.";
     }
 }
 
 
-// =====================================
-// GLOBAL STATE
-// =====================================
+// --- GLOBAL STATE ---
 const groupCache = new Map();
 const activityTracker = new Map();
 
 let protocolFired = false;
 
-
-// =====================================
-// MIDNIGHT RESET (WAT)
-// =====================================
+// FIX: safer midnight reset (WAT)
 setInterval(() => {
-
-    const hour =
-        new Date().toLocaleString(
-            "en-US",
-            {
-                timeZone: "Africa/Lagos",
-                hour: "2-digit",
-                hour12: false
-            }
-        );
+    const hour = new Date().toLocaleString("en-US", {
+        timeZone: "Africa/Lagos",
+        hour: "2-digit",
+        hour12: false
+    });
 
     if (hour === "00") {
-
         protocolFired = false;
-
-        console.log(
-            "🔄 Protocol reset (Nigeria Midnight)"
-        );
+        console.log("🔄 Protocol reset (Nigeria Midnight)");
     }
-
 }, 60000);
 
 
-// =====================================
-// MEDIA DOWNLOADER
-// =====================================
+// --- MEDIA DOWNLOADER ---
 async function downloadMedia(message) {
+    const type = Object.keys(message)[0];
+    const stream = await downloadContentFromMessage(
+        message[type],
+        type.replace('Message', '')
+    );
 
-    const type =
-        Object.keys(message)[0];
+    let buffer = Buffer.from([]);
 
-    const stream =
-        await downloadContentFromMessage(
-            message[type],
-            type.replace(
-                'Message',
-                ''
-            )
-        );
-
-    let buffer =
-        Buffer.from([]);
-
-    for await (
-        const chunk of stream
-    ) {
-        buffer =
-            Buffer.concat([
-                buffer,
-                chunk
-            ]);
+    for await (const chunk of stream) {
+        buffer = Buffer.concat([buffer, chunk]);
     }
 
     return buffer;
 }
 
-
-// =====================================
-// PHONE NORMALIZER
-// =====================================
-function normalizePhone(
-    input = ""
-) {
-    return input
-        .toString()
-        .replace(/\D/g, '')
-        .replace(/^0/, '234');
-}
-
 let sock;
 
-// =====================================
-// BOT START
-// =====================================
+
+// --- BOT START ---
 async function startJARVIS() {
+    const { state, saveCreds } = await useMultiFileAuthState('auth_info');
+    const { version } = await fetchLatestBaileysVersion();
 
-    const {
-        state,
-        saveCreds
-    } = await useMultiFileAuthState(
-        'auth_info'
-    );
-
-    const version = [2, 3000, 1029030078];
     sock = makeWASocket({
         version,
         auth: state,
         printQRInTerminal: true,
-        logger: pino({
-            level: 'debug'
-        }),
-
-        browser: [
-            "Ubuntu",
-            "Chrome",
-            "20.0.04"
-        ],
-
-        connectTimeoutMs: 60000, 
-    defaultQueryTimeoutMs: 60000,
-    keepAliveIntervalMs: 15000,
-        syncFullHistory:
-            false
+        logger: pino({ level: 'silent' }),
+        browser: ["Mac OS", "Chrome", "125.0.0"],
+        keepAliveIntervalMs: 30000,
+        connectTimeoutMs: 60000,
+        syncFullHistory: false
     });
 
-if (!sock.authState.creds.registered) {
-    const phoneNumber = "2347033855206"; // Your number without + or spaces
-    setTimeout(async () => {
-        const code = await sock.requestPairingCode(phoneNumber);
-        console.log(`📱 YOUR PAIRING CODE: ${code}`);
-    }, 3000); // Wait 3 seconds to ensure socket is ready
-}
-    
-    // =========================
-    // SAVE CREDS
-    // =========================
-    sock.ev.on(
-        'creds.update',
-        saveCreds
-    );
+    sock.ev.on('creds.update', saveCreds);
 
+    sock.ev.on('connection.update', (update) => {
+        const { connection, lastDisconnect } = update;
 
-    // =========================
-    // CONNECTION UPDATE
-    // =========================
-    sock.ev.on(
-        'connection.update',
-        async (update) => {
+        if (connection === 'close') {
+            const shouldReconnect =
+                (lastDisconnect?.error instanceof Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
 
-            const {
-                connection,
-                lastDisconnect
-            } = update;
+            if (shouldReconnect) startJARVIS();
 
-            if (
-                connection === 'close'
-            ) {
-
-                const shouldReconnect =
-                    (
-                        lastDisconnect?.error
-                        instanceof Boom
-                    )?.output?.statusCode
-                    !==
-                    DisconnectReason.loggedOut;
-
-                if (
-                    shouldReconnect
-                ) {
-
-                    console.log(
-                        "🔄 Reconnecting JARVIS..."
-                    );
-
-                    startJARVIS();
-                }
-
-            } else if (
-                connection === 'open'
-            ) {
-
-                console.log(
-                    `✅ ${BOT_NAME} Online & Synced`
-                );
-            }
+        } else if (connection === 'open') {
+            console.log(`✅ ${BOT_NAME} Online & Synced`);
         }
-    );
+    });
+// --- GROUP WELCOME / GOODBYE ---
+sock.ev.on('group-participants.update', async (anu) => {
+    const jid = anu.id;
+    if (!jid) return;
 
+    await new Promise(r => setTimeout(r, 1500));
 
-    // =========================
-    // GROUP WELCOME / GOODBYE
-    // =========================
-    sock.ev.on(
-        'group-participants.update',
-        async (anu) => {
+    try {
+        let metadata = groupCache.get(jid);
 
-            const jid =
-                anu.id;
+        if (!metadata) {
+            metadata = await sock.groupMetadata(jid)
+                .catch(() => ({ subject: "this group" }));
+        }
 
-            if (!jid)
-                return;
+        const groupName = metadata.subject;
 
-            await new Promise(
-                r => setTimeout(
-                    r,
-                    1500
-                )
-            );
+        for (const num of anu.participants) {
 
-            try {
+            // ✅ SAFE NORMALIZATION (string OR object support)
+            const participantJid =
+                typeof num === 'string'
+                    ? num
+                    : num?.id || num?.jid;
 
-                let metadata =
-                    groupCache.get(
-                        jid
-                    ) ||
+            if (!participantJid) continue;
 
-                    await sock.groupMetadata(
-                        jid
-                    ).catch(() => ({
-                        subject:
-                            "this group"
-                    }));
+            // skip bot itself
+            const botJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+            if (participantJid === botJid) continue;
 
-                const groupName =
-                    metadata.subject;
+            const tag = participantJid.split('@')[0];
 
-                for (
-                    const num
-                    of anu.participants
-                ) {
-
-                    const participantJid =
-                        typeof num
-                            === 'string'
-                            ? num
-                            : num.id;
-
-                    if (
-                        participantJid ===
-                        sock.user.id
-                            .split(':')[0]
-                        +
-                        '@s.whatsapp.net'
-                    ) continue;
-
-                    const userTag =
-                        participantJid
-                            .split('@')[0];
-
-
-                    // =====================
-                    // USER JOINED
-                    // =====================
-                    if (
-                        anu.action
-                        === 'add'
-                    ) {
-
-                        await sock.sendMessage(
-                            jid,
-                            {
-                                text:
-`👋 Hello @${userTag}
+            // --- JOIN ---
+            if (anu.action === 'add') {
+                await sock.sendMessage(jid, {
+                    text:
+`👋 Hello @${tag}
 
 🎓 *Welcome to ${groupName}*
 
-📚 _For 2026 JAMB Candidates Only_
+📚 _For 2026 JAMB/WAEC/PostUTME/JUPEB Candidates Only_
 
-Daily revision based on the JAMB syllabus with intensive brainstorming sessions ✍️📖
+Daily revision based on the JAMB/WAEC/PostUTME/JUPEB syllabus with intensive brainstorming sessions ✍️📖
 
 ⚠️ *GROUP RULES*
 • Posting of links is strictly prohibited
@@ -423,1321 +211,1277 @@ Daily revision based on the JAMB syllabus with intensive brainstorming sessions 
 💡 Read, learn, participate and succeed.
 
 _Powered by Flexi Educational Consult_ 🚀`,
-                                mentions: [
-                                    participantJid
-                                ]
-                            }
-                        );
-                    }
+                    mentions: [participantJid]
+                });
+            }
 
-
-                    // =====================
-                    // USER LEFT
-                    // =====================
-                    else if (
-                        anu.action
-                        === 'remove'
-                    ) {
-
-                        await sock.sendMessage(
-                            jid,
-                            {
-                                text:
-`👋 @${userTag} has left *${groupName}*
+            // --- LEAVE ---
+            else if (anu.action === 'remove') {
+                await sock.sendMessage(jid, {
+                    text:
+`👋 @${tag} has left *${groupName}*
 
 We appreciate the time spent with us and wish you success in your academics and future examinations 🎓✨
 
 Keep striving for excellence and never stop learning.
 
 _Flexi Educational Consult_ 🚀`,
-                                mentions: [
-                                    participantJid
-                                ]
-                            }
-                        );
-                    }
-                }
-
-            } catch (err) {
-
-                console.log(
-                    "Automation Error:",
-                    err.message
-                );
+                    mentions: [participantJid]
+                });
             }
         }
-    );
 
+    } catch (err) {
+        console.log("Automation Error:", err.message);
+    }
+});
 
-    // =====================================
-    // MESSAGES UPSERT STARTS HERE
-    // =====================================
-    sock.ev.on(
-        'messages.upsert',
-        async ({ messages }) => {
-            const m = messages[0];
+    // =========================
+    // ANTI STATUS MENTION SYSTEM (FIXED SAFETY)
+    // =========================
+    try {
+        const type = m.messageStubType || m.message?.messageStubType;
 
-            if (!m?.message) return;
-            if (m.key.fromMe) return;
+        const isStatusMention =
+            type === 'group_mention_notification' ||
+            type === 156 ||
+            type === 0x9c;
 
-            const jid =
-                m.key.remoteJid;
+        if (isStatusMention) {
+            const participant = m.messageStubParameters?.[0];
+            const groupJid = jid;
 
-            const sender =
-                m.key.participant ||
-                jid;
+            if (!participant) return;
 
+            await sock.sendMessage(groupJid, {
+                delete: m.key
+            }).catch(() => {});
 
-            // =========================
-            // MESSAGE PARSING
-            // =========================
-            const body =
-                m.message.conversation ||
-                m.message.extendedTextMessage?.text ||
-                m.message.imageMessage?.caption ||
-                "";
-
-            const text =
-                body
-                    .toLowerCase()
-                    .trim();
-
-            const isOwner =
-                sender.includes(
-                    OWNER_NUMBER
-                );
-
-
-            // =========================
-            // LIVE QUIZ INTERCEPTOR
-            // =========================
-            const wasQuizMessage =
-                await quizEngine
-                    .handleLiveMarking(
-                        sock,
-                        jid,
-                        sender,
-                        body,
-                        m
-                    );
-
-            if (
-                wasQuizMessage
-            ) return;
-
-
-            // =========================
-            // JARVIS REACTION
-            // =========================
-            if (
-                !m.key.fromMe &&
-                text.includes(
-                    "jarvis"
-                ) &&
-                !text.startsWith(
-                    "!"
-                )
-            ) {
-
-                await sock.sendMessage(
-                    jid,
-                    {
-                        react: {
-                            key: m.key,
-                            text: "🤖"
-                        }
-                    }
-                );
+            if (!global.db) global.db = { data: { users: {} } };
+            if (!global.db.data.users[participant]) {
+                global.db.data.users[participant] = { warn: 0 };
             }
 
+            global.db.data.users[participant].warn += 1;
 
-            // =========================
-            // GRAMMAR WATCHDOG
-            // =========================
-            if (
-                !m.key.fromMe &&
-                body
-            ) {
+            const warnCount = global.db.data.users[participant].warn;
+            const maxWarns = 3;
 
-                const correctedVersion =
-                    await grammarWatchdog
-                        .autoCorrectGrammar(
-                            body
-                        );
+            const msg =
+`*⚠️ JARVIS AI SAFETY SYSTEM ⚠️*
 
-                if (
-                    correctedVersion &&
-                    correctedVersion
-                        .trim()
-                        .toLowerCase()
-                    !==
-                    body
-                        .trim()
-                        .toLowerCase()
-                ) {
+@${participant.split('@')[0]}, tagging this group in status is not allowed.
 
-                    const userTag =
-                        sender
-                            .split(
-                                '@'
-                            )[0];
+*Strike:* ${warnCount}/${maxWarns}`;
 
-                    const alertPayload =
-`📝 *Grammar Check Alert* 📝
+            await sock.sendMessage(groupJid, {
+                text: msg,
+                mentions: [participant]
+            });
 
-@${userTag}, I noticed a minor slip in your structure.
+            if (warnCount >= maxWarns) {
+                await sock.sendMessage(groupJid, {
+                    text: `🚫 Final strike reached. Removing user...`
+                });
 
-👉 *"${correctedVersion}"*`;
-
-                    await sock.sendMessage(
-                        jid,
-                        {
-                            text:
-                                alertPayload,
-
-                            mentions:
-                                [sender]
-                        },
-                        {
-                            quoted:
-                                m
-                        }
-                    );
-                }
+                await sock.groupParticipantsUpdate(groupJid, [participant], "remove");
             }
 
+            return;
+        }
+    } catch (err) {
+        console.log("Anti-status error:", err.message);
+    }
 
-            // =========================
-            // STAFF CHECK
-            // =========================
-            let metadata;
-            let isStaff =
-                isOwner;
+    // =========================
+    // MESSAGE PARSING (FIXED SAFETY)
+    // =========================
+    const body =
+        m.message.conversation ||
+        m.message.extendedTextMessage?.text ||
+        m.message.imageMessage?.caption ||
+        "";
 
-            if (
-                jid.endsWith(
-                    '@g.us'
-                )
-            ) {
+        const text = body.toLowerCase().trim();
+    const isOwner = sender.includes(OWNER_NUMBER);
 
-                try {
+    // 🌟 LIVE QUIZ INTERCEPTOR 🌟
+    // Intercepts and grades students' choice inputs on Saturday nights
+    const wasQuizMessage = await quizEngine.handleLiveMarking(sock, jid, sender, body, m);
+    if (wasQuizMessage) return;
+        
+    if (text.includes("jarvis") && !text.startsWith("!")) {
+        await sock.sendMessage(jid, {
+            react: { key: m.key, text: "🤖" }
+        });
+    }
 
-                    metadata =
-                        groupCache.get(
-                            jid
-                        );
+    // 🕵️‍♂️ AUTOMATED GRAMMAR MONITOR (Modular Interceptor)
+    // Runs in the background to automatically correct bad grammar structures
+    if (!m.key.fromMe && body) {
+        const correctedVersion = await grammarWatchdog.autoCorrectGrammar(body);
+        
+        if (correctedVersion && correctedVersion.trim().toLowerCase() !== body.trim().toLowerCase()) {
+            const userTag = sender.split('@')[0];
+            const alertPayload = 
+                `📝 *Grammar Check Alert* 📝\n\n` +
+                `@${userTag}, I noticed a minor slip in your structure. Here is the corrected version:\n\n` +
+                `👉 *"${correctedVersion}"*`;
 
-                    if (
-                        !metadata ||
-                        Date.now() -
-                        (
-                            metadata.lastFetch ||
-                            0
-                        )
-                        >
-                        300000
-                    ) {
+            await sock.sendMessage(jid, { 
+                text: alertPayload, 
+                mentions: [sender] 
+            }, { quoted: m });
+        }
+    }
+        
 
-                        metadata =
-                            await sock
-                                .groupMetadata(
-                                    jid
-                                );
+    // =========================
+    // GROUP METADATA / STAFF CHECK (FIXED)
+    // =========================
+    let metadata;
+    let isStaff = isOwner;
 
-                        metadata.lastFetch =
-                            Date.now();
+    if (jid.endsWith('@g.us')) {
+        try {
+            metadata = groupCache.get(jid);
 
-                        groupCache.set(
-                            jid,
-                            metadata
-                        );
-                    }
-
-                    const admins =
-                        (
-                            metadata
-                                .participants ||
-                            []
-                        )
-                            .filter(
-                                p => p.admin
-                            )
-                            .map(
-                                p => p.id
-                            );
-
-                    isStaff =
-                        isOwner ||
-                        admins.includes(
-                            sender
-                        );
-
-                } catch (
-                    err
-                ) {
-
-                    isStaff =
-                        isOwner;
-                }
+            if (!metadata || Date.now() - (metadata.lastFetch || 0) > 300000) {
+                metadata = await sock.groupMetadata(jid);
+                metadata.lastFetch = Date.now();
+                groupCache.set(jid, metadata);
             }
 
+            const admins =
+                (metadata.participants || [])
+                    .filter(p => p.admin)
+                    .map(p => p.id);
 
-            // =========================
-            // WATCHDOG
-            // =========================
-            if (
-                jid.endsWith(
-                    '@g.us'
-                ) &&
-                !isStaff &&
-                !m.key.fromMe
-            ) {
+            isStaff = isOwner || admins.includes(sender);
 
-                const badWords = [
-                    "rubbish",
-                    "mumu",
-                    "foolish",
-                    "stupid",
-                    "bastard",
-                    "ode"
-                ];
+        } catch (err) {
+            isStaff = isOwner;
+        }
+    }
 
-                const isLink =
-                    text.includes(
-                        "http"
-                    ) ||
-                    text.includes(
-                        ".com"
-                    ) ||
-                    text.includes(
-                        "chat.whatsapp"
-                    );
+    // =========================
+    // WATCHDOG (FIXED SAFETY + LOWER FALSE POSITIVES)
+    // =========================
+    if (jid.endsWith('@g.us') && !isStaff) {
 
-                const isBadWord =
-                    badWords.some(
-                        word =>
-                            text.includes(
-                                word
-                            )
-                    );
+        const badWords = [
+            "rubbish", "mumu", "foolish",
+            "stupid", "bastard", "ode"
+        ];
 
-                if (
-                    isLink ||
-                    isBadWord
-                ) {
+        const isLink =
+            text.includes("http") ||
+            text.includes(".com") ||
+            text.includes("chat.whatsapp");
 
-                    await sock
-                        .sendMessage(
-                            jid,
-                            {
-                                delete:
-                                    m.key
-                            }
-                        )
-                        .catch(
-                            () => {}
-                        );
+        const isBadWord = badWords.some(word => text.includes(word));
 
-                    let userWarn =
-                        await Warn
-                            .findOneAndUpdate(
-                                {
-                                    userId:
-                                        sender
-                                },
-                                {
-                                    $inc:
-                                        {
-                                            count:
-                                                1
-                                        }
-                                },
-                                {
-                                    upsert:
-                                        true,
+        if (isLink || isBadWord) {
+            await sock.sendMessage(jid, { delete: m.key }).catch(() => {});
 
-                                    new:
-                                        true
-                                }
-                            );
-
-                    if (
-                        userWarn.count
-                        >= 3
-                    ) {
-
-                        await sock.sendMessage(
-                            jid,
-                            {
-                                text:
-`🚫 @${sender.split('@')[0]} removed (3 Strikes).`,
-                                mentions:
-                                    [
-                                        sender
-                                    ]
-                            }
-                        );
-
-                        await sock.groupParticipantsUpdate(
-                            jid,
-                            [sender],
-                            "remove"
-                        );
-
-                        await Warn.deleteOne(
-                            {
-                                userId:
-                                    sender
-                            }
-                        );
-
-                    } else {
-
-                        await sock.sendMessage(
-                            jid,
-                            {
-                                text:
-`⚠️ *Watchdog*
-@${sender.split('@')[0]}, violation detected (${userWarn.count}/3).`,
-                                mentions:
-                                    [
-                                        sender
-                                    ]
-                            }
-                        );
-                    }
-
-                    return;
-                }
-            }
-
-
-            // =========================
-            // COMMANDS
-            // =========================
-            const command =
-                text
-                    .split(
-                        / +/
-                    )[0];
-
-            const args =
-                body
-                    .trim()
-                    .split(
-                        / +/
-                    )
-                    .slice(1);
-
-
-            // =========================
-            // COMMANDS.JS
-            // =========================
-            await commands(
-                sock,
-                m,
-                command,
-                args,
-                jid,
-                sender,
-                isStaff,
-                Warn,
-                activityTracker,
-                askAI,
-                downloadMedia,
-                metadata,
-                BOT_NAME,
-                POWERED_BY,
-                OWNER_NUMBER
+            let userWarn = await Warn.findOneAndUpdate(
+                { userId: sender },
+                { $inc: { count: 1 } },
+                { upsert: true, new: true }
             );
 
+            if (userWarn.count >= 3) {
+                await sock.sendMessage(jid, {
+                    text: `🚫 @${sender.split('@')[0]} removed (3 Strikes).`,
+                    mentions: [sender]
+                });
 
-            // =========================
-            // FILE / AI SYSTEM
-            // =========================
-            if (
-                jid.endsWith(
-                    '@g.us'
-                ) &&
-                (
-                    text.startsWith(
-                        "!ai"
-                    ) ||
-                    text.includes(
-                        "jarvis"
-                    )
-                )
-            ) {
+                await sock.groupParticipantsUpdate(jid, [sender], "remove");
+                await Warn.deleteOne({ userId: sender });
 
-                const isDoc =
-                    !!m.message
-                        .documentMessage;
+            } else {
+                await sock.sendMessage(jid, {
+                    text: `⚠️ *Watchdog*\n@${sender.split('@')[0]}, violation detected (${userWarn.count}/3).`,
+                    mentions: [sender]
+                });
+            }
 
-                const isImg =
-                    !!m.message
-                        .imageMessage ||
+            return;
+        }
+    }
 
-                    !!m.message
-                        .extendedTextMessage
-                        ?.contextInfo
-                        ?.quotedMessage
-                        ?.imageMessage;
+    const command = text.split(/ +/)[0];
+    const args = body.trim().split(/ +/).slice(1);
 
-                if (
-                    isDoc ||
-                    isImg
-                ) {
+    // =========================
+    // FILE / AI SYSTEM (FIXED IMAGE + DOC HANDLING)
+    // =========================
+    if (
+        jid.endsWith('@g.us') &&
+        (text.startsWith("!ai") || text.includes("jarvis"))
+    ) {
 
-                    await sock.sendMessage(
-                        jid,
-                        {
-                            react: {
-                                key:
-                                    m.key,
-                                text:
-                                    "📂"
-                            }
-                        }
-                    );
+        const isDoc = !!m.message.documentMessage;
 
-                    await sock.sendPresenceUpdate(
-                        'composing',
-                        jid
-                    );
+        const isImg =
+            !!m.message.imageMessage ||
+            !!m.message.extendedTextMessage?.contextInfo?.quotedMessage?.imageMessage;
 
-                    try {
+        // =========================
+        // FILE ANALYSIS MODE
+        // =========================
+        if (isDoc || isImg) {
+            await sock.sendMessage(jid, {
+                react: { key: m.key, text: "📂" }
+            });
 
-                        let mediaMessage;
+            await sock.sendPresenceUpdate('composing', jid);
 
-                        if (
-                            isDoc
-                        ) {
+            try {
+                let mediaMessage;
 
-                            mediaMessage =
-                                m.message
-                                    .documentMessage;
-
-                        } else {
-
-                            mediaMessage =
-                                m.message
-                                    .imageMessage
-                                    ? m.message
-                                    : m.message
-                                          .extendedTextMessage
-                                          ?.contextInfo
-                                          ?.quotedMessage;
-                        }
-
-                        const buffer =
-                            await downloadMedia(
-                                mediaMessage
-                            );
-
-                        const base64Media =
-                            buffer.toString(
-                                'base64'
-                            );
-
-                        const fileName =
-                            isDoc
-                                ? m.message
-                                      .documentMessage
-                                      .fileName
-                                : "Image Analysis";
-
-                        const aiReply =
-                            await askAI(
-                                body ||
-                                `Please analyze this file: ${fileName}`,
-                                base64Media
-                            );
-
-                        return sock.sendMessage(
-                            jid,
-                            {
-                                text:
-`🎓 *GROUP STUDY ASSISTANT*
-
-${aiReply}`
-                            },
-                            {
-                                quoted:
-                                    m
-                            }
-                        );
-
-                    } catch (
-                        err
-                    ) {
-
-                        console.log(
-                            "File Error:",
-                            err.message
-                        );
-
-                        return sock.sendMessage(
-                            jid,
-                            {
-                                text:
-"⚠️ I couldn't read that file. Ensure it's a PDF or Image."
-                            }
-                        );
-                    }
+                if (isDoc) {
+                    mediaMessage = m.message.documentMessage;
+                } else {
+                    mediaMessage =
+                        m.message.imageMessage
+                            ? m.message
+                            : m.message.extendedTextMessage?.contextInfo?.quotedMessage;
                 }
+
+                const buffer = await downloadMedia(mediaMessage);
+                const base64Media = buffer.toString('base64');
+
+                const fileName = isDoc
+                    ? m.message.documentMessage.fileName
+                    : "Image Analysis";
+
+                const aiReply = await askAI(
+                    body || `Please analyze this file: ${fileName}`,
+                    base64Media
+                );
+
+                return sock.sendMessage(jid, {
+                    text: `🎓 *GROUP STUDY ASSISTANT*\n\n${aiReply}`
+                }, { quoted: m });
+
+            } catch (err) {
+                console.log("File Error:", err.message);
+                return sock.sendMessage(jid, {
+                    text: "⚠️ I couldn't read that file. Ensure it's a PDF or Image."
+                });
             }
+        }
+    }
 
 
-            // =========================
-            // FILE CREATOR
-            // =========================
-            if (
-                text.includes(
-                    "create file"
-                ) ||
-                text.includes(
-                    "generate pdf"
-                ) ||
-                text.includes(
-                    "write note"
-                )
-            ) {
+// B. Creating Files (Generating Notes/PDFs)
+if (
+    text.includes("create file") ||
+    text.includes("generate pdf") ||
+    text.includes("write note")
+) {
+    await sock.sendMessage(jid, { react: { key: m.key, text: "📝" } });
+    await sock.sendPresenceUpdate('composing', jid);
 
-                await sock.sendMessage(
-                    jid,
-                    {
-                        react: {
-                            key:
-                                m.key,
-                            text:
-                                "📝"
-                        }
-                    }
-                );
+    const contentPrompt = `Create a detailed, professional study document based on this request: ${text}. Format it clearly for students.`;
+    const content = await askAI(contentPrompt);
 
-                await sock.sendPresenceUpdate(
-                    'composing',
-                    jid
-                );
+    const fileBuffer = Buffer.from(content, 'utf-8');
 
-                const contentPrompt =
-`Create a detailed, professional study document based on this request: ${text}. Format it clearly for students.`;
+    const cleanName =
+        text.split("file")[1]?.trim()?.replace(/ /g, "_") ||
+        "JARVIS_Study_Note";
 
-                const content =
-                    await askAI(
-                        contentPrompt
-                    );
+    return sock.sendMessage(
+        jid,
+        {
+            document: fileBuffer,
+            mimetype: 'text/plain',
+            fileName: `${cleanName}.txt`,
+            caption: `✅ *JARVIS Document Generator*\n\nStudy notes generated successfully.`
+        },
+        { quoted: m }
+    );
+}
 
-                const fileBuffer =
-                    Buffer.from(
-                        content,
-                        'utf-8'
-                    );
+    
+// --- NEW: askAI NIGERIA PROTOCOL (7 PM WAT) ---
+const nigeriaTime = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Africa/Lagos',
+    hour: 'numeric',
+    hour12: false
+}).format(new Date());
 
-                const cleanName =
-                    text
-                        .split(
-                            "file"
-                        )[1]
-                        ?.trim()
-                        ?.replace(
-                            / /g,
-                            "_"
-                        )
-                    ||
-                    "JARVIS_Study_Note";
+const currentHourWAT = parseInt(nigeriaTime);
 
-                return sock.sendMessage(
-                    jid,
-                    {
-                        document:
-                            fileBuffer,
+// FIX: prevent undefined crash
+if (isStaff && !isNaN(currentHourWAT)) {
 
-                        mimetype:
-                            'text/plain',
+    if (currentHourWAT >= 19 && !protocolFired && !text.startsWith("!")) {
+        const subjects = ["math", "physics", "chemistry", "biology", "english", "economics", "government"];
+        const foundSubject = subjects.find(s => text.includes(s));
 
-                        fileName:
-`${cleanName}.txt`,
+        if (foundSubject) {
+            const adminTag = `@${sender.split('@')[0]}`;
 
-                        caption:
-`✅ *JARVIS Document Generator*
-
-Study notes generated successfully.`
-                    },
-                    {
-                        quoted:
-                            m
-                    }
-                );
-            }
-
-
-            // =========================
-            // askAI PROTOCOL
-            // =========================
-            const nigeriaTime =
-                new Intl
-                    .DateTimeFormat(
-                        'en-GB',
-                        {
-                            timeZone:
-                                'Africa/Lagos',
-                            hour:
-                                'numeric',
-                            hour12:
-                                false
-                        }
-                    )
-                    .format(
-                        new Date()
-                    );
-
-            const currentHourWAT =
-                parseInt(
-                    nigeriaTime
-                );
-
-            if (
-                isStaff &&
-                !isNaN(
-                    currentHourWAT
-                )
-            ) {
-
-                if (
-                    currentHourWAT >=
-                    19 &&
-                    !protocolFired &&
-                    !text.startsWith(
-                        "!"
-                    )
-                ) {
-
-                    const subjects = [
-                        "math",
-                        "physics",
-                        "chemistry",
-                        "biology",
-                        "english",
-                        "economics",
-                        "government"
-                    ];
-
-                    const foundSubject =
-                        subjects.find(
-                            s =>
-                                text.includes(
-                                    s
-                                )
-                        );
-
-                    if (
-                        foundSubject
-                    ) {
-
-                        const adminTag =
-`@${sender.split('@')[0]}`;
-
-                        await sock.sendMessage(
-                            jid,
-                            {
-                                text:
+            await sock.sendMessage(jid, {
+                text:
 `================
 *askAI PROTOCOL ONLINE*
 ================
 ${adminTag} Kindly use !ai to fetch PostUTME questions for ${foundSubject.toUpperCase()}`,
-                                mentions:
-                                    [
-                                        sender
-                                    ]
-                            }
-                        );
+                mentions: [sender]
+            });
 
-                        protocolFired =
-                            true;
-                    }
-                }
-                                }
-            // =========================
-            // TIMETABLE
-            // =========================
-            if (command === "!timetable") {
+            protocolFired = true;
+        }
+    }
+}
 
-                try {
+    
+// --- PUBLIC COMMAND: TIMETABLE ---
+if (command === "!timetable") {
+    try {
+        const timetableUrl = 'https://i.postimg.cc/vTyBtTzS/IMG-20260511-WA0031.jpg';
 
-                    const timetableUrl =
-"https://i.postimg.cc/vTyBtTzS/IMG-20260511-WA0031.jpg";
+        const response = await axios.get(timetableUrl, {
+            responseType: 'arraybuffer'
+        });
 
-                    const response =
-                        await axios.get(
-                            timetableUrl,
-                            {
-                                responseType:
-                                    'arraybuffer'
-                            }
-                        );
+        await sock.sendMessage(jid, {
+            image: Buffer.from(response.data),
+            caption:
+                `🗓️ *POST UTME TUTORIALS 2025/2026*\n\n` +
+                `✅ *Starts:* 11th July\n` +
+                `💰 *Fee:* ₦6,000 monthly\n\n` +
+                `📢 Join WhatsApp group:\n` +
+                `https://chat.whatsapp.com/KoI4QtlwggOFtGyoE0MYY4\n\n` +
+                `_Powered by ${POWERED_BY}_`
+        });
 
-                    await sock.sendMessage(
-                        jid,
-                        {
-                            image:
-                                Buffer.from(
-                                    response.data
-                                ),
+    } catch (err) {
+        console.log("Timetable Error:", err.message);
 
-                            caption:
-`🗓️ *POST UTME TUTORIALS 2025/2026*
-
-✅ *Starts:* 11th July
-💰 *Fee:* ₦6,000 monthly
-
-📢 Join WhatsApp group:
-https://chat.whatsapp.com/KoI4QtlwggOFtGyoE0MYY4
-
-_Powered by ${POWERED_BY}_`
-                        }
-                    );
-
-                } catch (err) {
-
-                    console.log(
-                        "Timetable Error:",
-                        err.message
-                    );
-
-                    await sock.sendMessage(
-                        jid,
-                        {
-                            text:
-"❌ Failed to load timetable image."
-                        }
-                    );
-                }
-            }
+        await sock.sendMessage(jid, {
+            text: "❌ Failed to load timetable image."
+        });
+    }
+}
 
 
-            // =========================
-            // LIST ADMINS
-            // =========================
-            if (
-                command ===
-                "!listadmins"
-            ) {
+        
+    // --- LIST ADMINS COMMAND (Everyone can use) ---
+if (command === "!listadmins") {
+    if (!jid.endsWith('@g.us')) {
+        return sock.sendMessage(jid, {
+            text: "❌ This command only works in groups."
+        });
+    }
 
-                if (
-                    !jid.endsWith(
-                        '@g.us'
-                    )
-                ) {
+    try {
+        let metadata = groupCache.get(jid);
 
-                    return sock.sendMessage(
-                        jid,
-                        {
-                            text:
-"❌ This command only works in groups."
-                        }
-                    );
-                }
+        if (!metadata || Date.now() - (metadata.lastFetch || 0) > 300000) {
+            metadata = await sock.groupMetadata(jid);
+            metadata.lastFetch = Date.now();
+            groupCache.set(jid, metadata);
+        }
 
-                try {
+        const admins = metadata.participants.filter(p => p.admin);
 
-                    let metadata =
-                        groupCache.get(
-                            jid
-                        );
+        let adminList = `👑 *${metadata.subject} Admins*\n\n`;
 
-                    if (
-                        !metadata ||
-                        Date.now() -
-                        (
-                            metadata.lastFetch ||
-                            0
-                        )
-                        >
-                        300000
-                    ) {
+        admins.forEach((admin, index) => {
+            adminList += `${index + 1}. @${admin.id.split('@')[0]}\n`;
+        });
 
-                        metadata =
-                            await sock.groupMetadata(
-                                jid
-                            );
+        adminList += `\n🤖 _Powered by ${POWERED_BY}_`;
 
-                        metadata.lastFetch =
-                            Date.now();
+        await sock.sendMessage(jid, {
+            text: adminList,
+            mentions: admins.map(a => a.id)
+        });
 
-                        groupCache.set(
-                            jid,
-                            metadata
-                        );
-                    }
+    } catch (err) {
+        console.log("ListAdmins Error:", err.message);
 
-                    const admins =
-                        metadata
-                            .participants
-                            .filter(
-                                p =>
-                                    p.admin
-                            );
-
-                    let adminList =
-`👑 *${metadata.subject} Admins*
-
-`;
-
-                    admins.forEach(
-                        (
-                            admin,
-                            index
-                        ) => {
-
-                            adminList +=
-`${index + 1}. @${admin.id.split('@')[0]}
-`;
-                        }
-                    );
-
-                    adminList +=
-`\n🤖 _Powered by ${POWERED_BY}_`;
-
-                    await sock.sendMessage(
-                        jid,
-                        {
-                            text:
-                                adminList,
-
-                            mentions:
-                                admins.map(
-                                    a => a.id
-                                )
-                        }
-                    );
-
-                } catch (
-                    err
-                ) {
-
-                    console.log(
-                        "ListAdmins Error:",
-                        err.message
-                    );
-
-                    await sock.sendMessage(
-                        jid,
-                        {
-                            text:
-"❌ Failed to fetch admin list."
-                        }
-                    );
-                }
-            }
+        await sock.sendMessage(jid, {
+            text: "❌ Failed to fetch admin list."
+        });
+    }
+}
 
 
-            // =========================
-            // MENU / HELP
-            // =========================
-            if (
-                command ===
-                "!menu" ||
-                command ===
-                "!help"
-            ) {
-
-                const menuText =
-`🤖 *${BOT_NAME} SYSTEM MENU*
-
+// --- MENU / HELP COMMAND ---
+if (command === "!menu" || command === "!help") {
+    const menuText = `🤖 *${BOT_NAME} SYSTEM MENU*
+    
 *Powered by ${POWERED_BY}*
 
 ━━━━━━━━━━━━━━━━━━━━
 ✨ *AI & UTILITY*
-🔹 *!ai [query]*
-🔹 *!ginfo*
-🔹 *!listonline*
-🔹 *!timetable*
-🔹 *!listadmins*
-🔹 *!image*
+🔹 *!ai [query]* - Ask anything
+🔹 *!ginfo* - Group status report
+🔹 *!listonline* - Activity tracker
+🔹 *!timetable* - Get latest tutorial schedule
+🔹 *!listadmins* - View group admins
+🔹 *!image* - To generate images
 
 🛡️ *GROUP MODERATION*
-🔸 *!add [number]*
-🔸 *!kick @user*
-🔸 *!promote @user*
-🔸 *!mute [time] [unit]*
-🔸 *!unmute [time] [unit]*
-🔸 *!reset @user*
+🔸 *!add [number]* - Add new member
+🔸 *!kick @user* - Remove member
+🔸 *!promote @user* - Make admin
+🔸 *!mute [time] [unit]* - Lock group
+🔸 *!unmute [time] [unit]* - Open group
+🔸 *!reset @user* - Clear warnings
 
 🚫 *SYSTEM PROTECTIONS*
-✅ Watchdog
-✅ Auto-Greet
-━━━━━━━━━━━━━━━━━━━━`;
+✅ *Watchdog:* Anti-Link & Anti-Badword
+✅ *Anti-Status:* Deletes status tags
+✅ *Auto-Greet:* Welcome/Goodbye
+━━━━━━━━━━━━━━━━━━━━
 
-                return sock.sendMessage(
-                    jid,
-                    {
-                        text:
-                            menuText
-                    },
-                    {
-                        quoted:
-                            m
-                    }
-                );
-            }
+_Type !mute 30 min to test the timer!_`;
 
+    return sock.sendMessage(jid, {
+        text: menuText,
+        quoted: m
+    });
+}
 
-            // =========================
-            // PAYMENT
-            // =========================
-            if (
-                command ===
-                "!pay"
-            ) {
+                // =====================================================
+        // COMMAND: TUTORIAL PAYMENT PORTAL (!pay)
+        // =====================================================
+        if (command === "!pay") {
+            // Silently processes and routes the response straight to the student's DM
+            await paymentHandler.handlePaymentRequest(sock, m, sender, args);
+            return;
+        }
 
-                await paymentHandler
-                    .handlePaymentRequest(
-                        sock,
-                        m,
-                        sender,
-                        args
-                    );
+  // ===============================
+// PROFILE REGISTRATION COMMAND
+// ===============================
 
-                return;
-            }
+// Firebase
+const admin = require("firebase-admin");
 
+// Initialize Firebase ONLY ONCE
+if (!admin.apps.length) {
 
-            // =========================
-            // !NAME
-            // =========================
-            if (
-                body.startsWith(
-                    "!name "
-                )
-            ) {
+    const serviceAccount = JSON.parse(
+        process.env.FIREBASE_SERVICE_ACCOUNT
+    );
 
-                try {
+    admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+    });
 
-                    const suppliedName =
-                        body
-                            .replace(
-                                "!name ",
-                                ""
-                            )
-                            .trim();
+    console.log("✅ Firebase Connected");
+}
 
-                    if (
-                        !suppliedName ||
-                        suppliedName.length <
-                        2
-                    ) {
+// Firestore Database Instance
+const db = admin.firestore();
 
-                        await sock.sendMessage(
-                            sender,
-                            {
-                                text:
+// ===============================
+// PHONE NORMALIZER
+// ===============================
+
+function normalizePhone(input = "") {
+
+    return input
+        .toString()
+        .replace(/\D/g, '')
+        .replace(/^0/, '234');
+}
+
+// ===============================
+// !NAME COMMAND
+// Example:
+// !name FLEXI SYSTEMS
+// ===============================
+
+if (body.startsWith("!name ")) {
+
+    try {
+
+        // Extract full name
+        const suppliedName = body
+            .replace("!name ", "")
+            .trim();
+
+        // Validate supplied name
+        if (
+            !suppliedName ||
+            suppliedName.length < 2
+        ) {
+
+            await sock.sendMessage(sender, {
+
+                text:
 `⚠️ INVALID NAME
 
 Please enter a valid name.
 
 Example:
 !name FLEXI SYSTEMS`
-                            }
-                        );
 
-                        return;
-                    }
+            });
 
-                    const phone =
-                        normalizePhone(
-                            sender
-                        );
+            return;
+        }
 
-                    console.log(
-                        "📌 Saving profile for:",
-                        phone
-                    );
+        // Normalize phone number
+        const phone =
+            normalizePhone(sender);
 
-                    await db
-                        .collection(
-                            "users"
-                        )
-                        .doc(phone)
-                        .set(
-                            {
-                                name:
-                                    suppliedName,
+        console.log(
+            "📌 Saving profile for:",
+            phone
+        );
 
-                                phone:
-                                    phone,
+        // Save profile to Firestore
+        await db
+            .collection("users")
+            .doc(phone)
+            .set({
 
-                                updatedAt:
-                                    Date.now(),
+                name: suppliedName,
 
-                                createdAt:
-                                    Date.now()
-                            },
-                            {
-                                merge:
-                                    true
-                            }
-                        );
+                phone: phone,
 
-                    console.log(
-                        "✅ Profile saved for:",
-                        phone
-                    );
+                updatedAt:
+                    Date.now(),
 
-                    await sock.sendMessage(
-                        sender,
-                        {
-                            text:
+                createdAt:
+                    Date.now()
+
+            }, { merge: true });
+
+        console.log(
+            "✅ Profile saved for:",
+            phone
+        );
+
+        // Success message
+        await sock.sendMessage(sender, {
+
+            text:
 `✅ PROFILE REGISTERED SUCCESSFULLY 🎓
 
 Thank you, your name has been saved as:
 
 ${suppliedName.toUpperCase()}
 
-🚀 You can now type:
+🚀 You can now proceed to type:
 
 !pay month
 or
-!pay week`
-                        }
-                    );
+!pay week
 
-                } catch (
-                    error
-                ) {
+to receive your secure billing invoice!`
 
-                    console.log(
-                        "❌ Name registration FULL ERROR:",
-                        error
-                    );
+        });
 
-                    await sock.sendMessage(
-                        sender,
-                        {
-                            text:
+    } catch (error) {
+
+        console.log(
+            "❌ Name registration FULL ERROR:",
+            error
+        );
+
+        await sock.sendMessage(sender, {
+
+            text:
 `❌ PROFILE REGISTRATION FAILED
 
+An unexpected error occurred while saving your profile.
+
 Please try again later.`
-                        }
-                    );
-                }
-            }
 
-        } // END messages.upsert
-    );
-} // END startJARVIS
+        });
+    }
+}       
 
+    
+// =======================
+// AI COMMAND (FIXED SAFE VERSION)
+// =======================
+if (isStaff && command === "!ai") {
+    const prompt = args.join(" ");
+    const quoted = m.message.extendedTextMessage?.contextInfo?.quotedMessage;
+    const isQuotedImage = quoted?.imageMessage;
+    const isDirectImage = m.message.imageMessage;
 
+    if (!prompt && !isDirectImage && !isQuotedImage) {
+        return sock.sendMessage(jid, {
+            text: "Oya, what is your question? You can also send an image."
+        });
+    }
 
-// =====================================
-// DASHBOARD ROUTES
-// =====================================
-const dashboardRoutes =
-    require(
-        './routes/dashboard'
-    );
+    await sock.sendPresenceUpdate('composing', jid);
 
-dashboardRoutes(
-    app,
-    sock,
-    firebaseConfig
-);
+    let base64Image = null;
 
+    if (isDirectImage || isQuotedImage) {
+        await sock.sendMessage(jid, { react: { key: m.key, text: "📸" } });
 
-// =====================================
-// WEBHOOK QUIZ ROUTE
-// =====================================
-app.post(
-    '/webhook/trigger-quiz',
-    async (
-        req,
-        res
-    ) => {
+        const mediaMessage = isDirectImage ? m.message : quoted;
 
         try {
-
-            const {
-                subject,
-                quizText,
-                answers
-            } = req.body;
-
-            if (
-                !subject ||
-                !answers
-            ) {
-
-                return res
-                    .status(
-                        400
-                    )
-                    .json({
-                        success:
-                            false,
-
-                        error:
-"Incomplete quiz data payload"
-                    });
-            }
-
-            const trigger =
-                await quizEngine
-                    .fireQuiz(
-                        sock,
-                        {
-                            subject,
-                            quizText,
-                            answers
-                        }
-                    );
-
-            if (
-                trigger.success
-            ) {
-
-                res.json({
-                    success:
-                        true,
-
-                    message:
-"Quiz pushed to group successfully"
-                });
-
-            } else {
-
-                res.status(
-                    500
-                ).json({
-                    success:
-                        false,
-
-                    error:
-                        trigger.error
-                });
-            }
-
-        } catch (
-            err
-        ) {
-
-            res.status(
-                500
-            ).json({
-                success:
-                    false,
-
-                error:
-                    err.message
-            });
+            const buffer = await downloadMedia(mediaMessage);
+            base64Image = buffer.toString('base64');
+        } catch (err) {
+            console.log("Media Error:", err.message);
         }
     }
-);
+
+    const aiReply = await askAI(
+        prompt || "Analyze this image clearly.",
+        base64Image
+    );
+
+    return sock.sendMessage(jid, {
+        text: `🤖 *JARVIS AI*\n\n${aiReply}`
+    });
+}
 
 
-// =====================================
-// PAYMENT SUCCESS ROUTE
-// =====================================
-app.post(
-    "/payment-success",
-    async (
-        req,
-        res
-    ) => {
+// --- WATCHONLINE COMMAND ---
+if (command === "!listonline") {
+    if (!metadata) return;
 
-        try {
+    const activeThreshold = 30 * 60 * 1000;
+    let activeCount = 0;
 
-            const {
-                phone,
-                plan
-            } = req.body;
-
-            if (!phone) {
-
-                return res
-                    .status(
-                        400
-                    )
-                    .json({
-                        success:
-                            false,
-
-                        message:
-"Missing phone details parameters."
-                    });
-            }
-
-            const studentJid =
-`${phone}@s.whatsapp.net`;
-
-            const paidClassGroupLink =
-"https://chat.whatsapp.com/JC7W3YORbIr4GtoktECpaU";
-
-            const activationNotice =
-`🎉 *FLEXI TUTORS PAYSTACK COMPLIANCE* 🎓
-
-Hello @${phone}, your payment for *${plan}* was successful!
-
-👇 Paid Lectures Group:
-${paidClassGroupLink}
-
-Welcome aboard 🚀`;
-
-            await sock.sendMessage(
-                studentJid,
-                {
-                    text:
-                        activationNotice,
-
-                    mentions:
-                        [
-                            studentJid
-                        ]
-                }
-            );
-
-            console.log(
-                `🚀 Access sent to ${phone}`
-            );
-
-            return res.json({
-                success:
-                    true,
-
-                message:
-"Group link dropped successfully."
-            });
-
-        } catch (
-            err
+    metadata.participants.forEach(p => {
+        if (
+            activityTracker.has(p.id) &&
+            (Date.now() - activityTracker.get(p.id) < activeThreshold)
         ) {
-
-            console.error(
-                "❌ Payment callback error:",
-                err.message
-            );
-
-            return res
-                .status(
-                    500
-                )
-                .json({
-                    success:
-                        false,
-
-                    error:
-                        err.message
-                });
+            activeCount++;
         }
+    });
+
+    return sock.sendMessage(jid, {
+        text: `*📊 ACTIVITY REPORT*\n\n🟢 Active: ${activeCount}\n👻 Ghosts: ${metadata.participants.length - activeCount}`
+    });
+}
+
+        //===Get Group ID Number 
+if (command === "!getjid") {
+    return sock.sendMessage(jid, { 
+        text: `🎯 This group's JID is:\n\n*${jid}*` 
+    }, { quoted: m });
+}
+// --- GROUP INFO ---
+if (command === "!ginfo") {
+    return sock.sendMessage(jid, {
+        text: `*📊 ${BOT_NAME} REPORT*\n\nGroup: ${metadata?.subject}\nMembers: ${metadata?.participants?.length}\nPowered by: ${POWERED_BY}`
+    });
+}
+
+
+// --- KICK / PROMOTE ---
+if (command === "!kick" || command === "!promote") {
+    let target =
+        m.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0] ||
+        m.message.extendedTextMessage?.contextInfo?.participant;
+
+    if (!target && args[0]) {
+        target = args[0].replace(/[^0-9]/g, '') + "@s.whatsapp.net";
     }
-);
+
+    if (!target || target.includes(OWNER_NUMBER)) {
+        return sock.sendMessage(jid, { text: "❌ Target invalid." });
+    }
+
+    const action = command === "!kick" ? "remove" : "promote";
+
+    try {
+        await sock.groupParticipantsUpdate(jid, [target], action);
+
+        await sock.sendMessage(jid, {
+            text: `✅ Successfully ${action === "remove" ? "removed" : "promoted"}.`
+        });
+
+    } catch (err) {
+        console.log("Group Action Error:", err.message);
+        await sock.sendMessage(jid, {
+            text: "❌ Failed. Am I admin?"
+        });
+    }
+}
 
 
-// =====================================
-// START SERVER
-// =====================================
-app.listen(port, () => {
-    console.log(`Server running on ${port}`);
+// --- IMAGE GENERATION ---
+if (command === "!image") {
+    const prompt = args.join(" ");
+    if (!prompt) {
+        return sock.sendMessage(jid, {
+            text: "❌ Provide a prompt"
+        });
+    }
+
+    await sock.sendMessage(jid, { react: { key: m.key, text: "🎨" } });
+
+    try {
+        const res = await axios.get(
+            `https://flexieduconsult-ai-link.onrender.com/image?prompt=${encodeURIComponent(prompt)}`
+        );
+
+        if (res.data?.success) {
+            await sock.sendMessage(jid, {
+                image: { url: res.data.image },
+                caption: `🖌️ *JARVIS AI ART*\nPrompt: ${prompt}`
+            });
+        }
+    } catch (err) {
+        console.log(err.message);
+        await sock.sendMessage(jid, {
+            text: "⚠️ Image generation failed"
+        });
+    }
+}
+
+
+// --- MUTE / UNMUTE ---
+if (command === "!mute" || command === "!unmute") {
+    const duration = args[0];
+    const unit = args[1]?.toLowerCase();
+
+    const action = command === "!mute"
+        ? 'announcement'
+        : 'not_announcement';
+
+    const statusText = command === "!mute"
+        ? "🔒 Group Locked"
+        : "🔓 Group Unlocked";
+
+    if (!duration || isNaN(duration)) {
+        await sock.groupSettingUpdate(jid, action);
+        return sock.sendMessage(jid, { text: statusText });
+    }
+
+    let milliseconds;
+
+    switch (unit) {
+        case 'sec':
+        case 's': milliseconds = duration * 1000; break;
+
+        case 'min':
+        case 'm': milliseconds = duration * 60 * 1000; break;
+
+        case 'hr':
+        case 'h': milliseconds = duration * 60 * 60 * 1000; break;
+
+        default:
+            return sock.sendMessage(jid, {
+                text: `❌ Use: ${command} [number] [sec/min/hr]`
+            });
+    }
+
+    await sock.groupSettingUpdate(jid, action);
+
+    setTimeout(async () => {
+        const reverse = action === 'announcement'
+            ? 'not_announcement'
+            : 'announcement';
+
+        await sock.groupSettingUpdate(jid, reverse);
+
+        await sock.sendMessage(jid, {
+            text: "🔄 Auto-reversed group setting"
+        });
+    }, milliseconds);
+}
+
+
+// --- ADD USER ---
+if (command === "!add") {
+    let target = args[0];
+
+    if (!target) {
+        return sock.sendMessage(jid, {
+            text: "❌ Provide number e.g. !add 08012345678"
+        });
+    }
+
+    target = target.replace(/[^0-9]/g, '');
+
+    if (target.startsWith('0')) {
+        target = '234' + target.slice(1);
+    }
+
+    const targetJid = target + "@s.whatsapp.net";
+
+    try {
+        const response = await sock.groupParticipantsUpdate(
+            jid,
+            [targetJid],
+            "add"
+        );
+
+        const result = response?.[0];
+
+        if (result?.status === "200") {
+            return sock.sendMessage(jid, {
+                text: `✅ Added @${target}`,
+                mentions: [targetJid]
+            });
+        } else if (result?.status === "403") {
+            return sock.sendMessage(jid, {
+                text: "⚠️ Privacy restriction"
+            });
+        } else if (result?.status === "409") {
+            return sock.sendMessage(jid, {
+                text: "ℹ️ Already in group"
+            });
+        } else {
+            return sock.sendMessage(jid, {
+                text: "❌ Failed to add user"
+            });
+        }
+
+    } catch (err) {
+        console.log("Add Error:", err.message);
+        return sock.sendMessage(jid, {
+            text: "❌ Error: Am I admin?"
+        });
+    }
+}
+
+
+// --- RESET WARN ---
+if (command === "!reset") {
+    let target =
+        m.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+
+    if (!target) {
+        return sock.sendMessage(jid, {
+            text: "❌ Tag someone to reset warnings"
+        });
+    }
+
+    await Warn.deleteOne({ userId: target });
+
+    return sock.sendMessage(jid, {
+        text: `✅ Strikes cleared for @${target.split('@')[0]}`,
+        mentions: [target]
+    });
+            }
+    });
+       // --- WEB DASHBOARD ROUTES ---
+
+const FB_SCRIPTS = `
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script>
+        const firebaseConfig = ${JSON.stringify(firebaseConfig)};
+        firebase.initializeApp(firebaseConfig);
+    </script>
+`;
+
+// ---------------- LOGIN ----------------
+app.get('/login', (req, res) => {
+    res.send(`
+<html>
+<head>
+<title>Login</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body{
+    font-family:sans-serif;
+    background:#f0f2f5;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    height:100vh;
+    margin:0;
+}
+.card{
+    background:white;
+    padding:30px;
+    border-radius:15px;
+    width:90%;
+    max-width:400px;
+    box-shadow:0 10px 25px rgba(0,0,0,0.1);
+    box-sizing:border-box;
+}
+header{
+    background:#002b5c;
+    color:white;
+    padding:15px;
+    text-align:center;
+    margin:-30px -30px 20px -30px;
+    border-radius:15px 15px 0 0;
+}
+input{
+    width:100%;
+    padding:12px;
+    margin:8px 0;
+    border:1px solid #ddd;
+    border-radius:8px;
+    box-sizing:border-box;
+}
+button{
+    width:100%;
+    padding:12px;
+    background:#002b5c;
+    color:white;
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+    font-weight:bold;
+}
+.google-btn{
+    background:#fff;
+    color:#757575;
+    border:1px solid #ddd;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    margin-top:15px;
+}
+.divider{
+    margin:20px 0;
+    border-top:1px solid #eee;
+    position:relative;
+    text-align:center;
+}
+.divider span{
+    position:absolute;
+    top:-10px;
+    left:42%;
+    background:white;
+    padding:0 10px;
+    font-size:12px;
+    color:#aaa;
+}
+</style>
+</head>
+<body>
+
+<div class="card">
+<header>LOGIN</header>
+
+<input id="email" type="email" placeholder="Email Address">
+<input id="pass" type="password" placeholder="Password">
+
+<button onclick="login()">Login</button>
+
+<div class="divider"><span>OR</span></div>
+
+<button class="google-btn" onclick="loginWithGoogle()">
+<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18">
+Sign in with Google
+</button>
+
+<p style="text-align:center;font-size:12px;margin-top:15px;">
+Don't have an account? <a href="/signup">Sign up</a>
+</p>
+</div>
+
+${FB_SCRIPTS}
+
+<script>
+function login(){
+    const e = document.getElementById('email').value;
+    const p = document.getElementById('pass').value;
+
+    firebase.auth().signInWithEmailAndPassword(e,p)
+    .then(u=>{
+        localStorage.setItem('userName', u.user.displayName || 'Admin');
+        window.location.href='/';
+    })
+    .catch(err=>alert(err.message));
+}
+
+function loginWithGoogle(){
+    const provider = new firebase.auth.GoogleAuthProvider();
+    firebase.auth().signInWithPopup(provider)
+    .then(result=>{
+        localStorage.setItem('userName', result.user.displayName);
+        window.location.href='/';
+    })
+    .catch(err=>alert("Google Error: "+err.message));
+}
+</script>
+
+</body>
+</html>
+`);
 });
 
-// START BOT
-startJARVIS();
+
+// ---------------- SIGNUP ----------------
+app.get('/signup', (req, res) => {
+    res.send(`
+<html>
+<head>
+<title>Sign Up</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body{
+    font-family:sans-serif;
+    background:#f0f2f5;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    height:100vh;
+    margin:0;
+}
+.card{
+    background:white;
+    padding:30px;
+    border-radius:15px;
+    width:90%;
+    max-width:400px;
+    box-shadow:0 10px 25px rgba(0,0,0,0.1);
+}
+header{
+    background:#002b5c;
+    color:white;
+    padding:15px;
+    text-align:center;
+    margin:-30px -30px 20px -30px;
+    border-radius:15px 15px 0 0;
+}
+input{
+    width:100%;
+    padding:12px;
+    margin:8px 0;
+    border:1px solid #ddd;
+    border-radius:8px;
+}
+button{
+    width:100%;
+    padding:12px;
+    background:#002b5c;
+    color:white;
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+}
+</style>
+</head>
+<body>
+
+<div class="card">
+<header>CREATE ACCOUNT</header>
+
+<input id="name" placeholder="Full Name">
+<input id="email" type="email" placeholder="Email">
+<input id="pass" type="password" placeholder="Password">
+<input id="confirm" type="password" placeholder="Confirm Password">
+
+<button onclick="signup()">Create Account</button>
+</div>
+
+${FB_SCRIPTS}
+
+<script>
+function signup(){
+    const n=document.getElementById('name').value;
+    const e=document.getElementById('email').value;
+    const p=document.getElementById('pass').value;
+
+    if(p !== document.getElementById('confirm').value){
+        return alert("Passwords don't match");
+    }
+
+    firebase.auth().createUserWithEmailAndPassword(e,p)
+    .then(u=>{
+        u.user.updateProfile({displayName:n}).then(()=>{
+            alert("Account created");
+            window.location.href="/login";
+        });
+    })
+    .catch(err=>alert(err.message));
+}
+</script>
+
+</body>
+</html>
+`);
+});
+
+
+// ---------------- DASHBOARD ----------------
+app.get('/', (req, res) => {
+    res.send(`
+<html>
+<head>
+<title>Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body{margin:0;font-family:sans-serif;background:#f4f7f9;}
+header{background:#002b5c;color:white;padding:20px;text-align:center;}
+.container{padding:20px;max-width:800px;margin:auto;}
+.welcome{font-size:24px;color:#002b5c;margin-bottom:20px;font-weight:bold;}
+.card{background:white;padding:20px;border-radius:12px;margin-bottom:20px;box-shadow:0 2px 10px rgba(0,0,0,0.05);}
+.btn{display:block;text-align:center;padding:15px;background:#003f88;color:white;text-decoration:none;border-radius:8px;font-weight:bold;margin-top:10px;}
+</style>
+</head>
+<body>
+
+<header>🤖 JARVIS AI PORTAL</header>
+
+<div class="container">
+<div class="welcome" id="greet">Welcome</div>
+
+<div class="card">
+<h3>Connection Status</h3>
+<p id="linked">Linked Number: Not Set</p>
+
+<input id="num" placeholder="234..." style="padding:10px;width:60%;">
+<button onclick="getPair()">Pair</button>
+
+<div id="code" style="font-size:22px;margin-top:10px;color:#003f88;font-weight:bold;">-- -- -- --</div>
+</div>
+
+<div class="card">
+<h3>Quick Actions</h3>
+<a href="/chat" class="btn">Chat with JARVIS</a>
+</div>
+
+</div>
+
+<script>
+const u = localStorage.getItem('userName');
+if(!u) window.location.href='/login';
+
+document.getElementById('greet').innerText = "Welcome back, " + u;
+
+async function getPair(){
+    const n=document.getElementById('num').value;
+    const res=await fetch('/pair?number='+n);
+    document.getElementById('code').innerText=await res.text();
+    document.getElementById('linked').innerText="Linked: +"+n;
+}
+</script>
+
+</body>
+</html>
+`);
+});
+
+
+// ---------------- CHAT ----------------
+app.get('/chat', (req, res) => {
+    res.send(`
+<html>
+<head>
+<title>Chat</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body{margin:0;font-family:sans-serif;display:flex;flex-direction:column;height:100vh;}
+header{background:#002b5c;color:white;padding:15px;text-align:center;}
+#box{flex:1;background:#e5ddd5;padding:20px;overflow-y:auto;}
+.inp{padding:20px;background:white;display:flex;gap:10px;}
+input{flex:1;padding:12px;border-radius:20px;border:1px solid #ddd;}
+</style>
+</head>
+<body>
+
+<header>JARVIS CHAT</header>
+
+<div id="box">
+<p style="background:white;padding:10px;border-radius:8px;display:inline-block;">
+Hello Admin
+</p>
+</div>
+
+<div class="inp">
+<input placeholder="Type...">
+<button>Send</button>
+</div>
+
+<script>
+if(!localStorage.getItem('userName')) window.location.href='/login';
+</script>
+
+</body>
+</html>
+`);
+});    
+// ... (rest of your code above)
+
+// ---------------- PAIR ----------------
+app.get('/pair', async (req, res) => {
+    const num = req.query.number?.replace(/[^0-9]/g,'');
+    if(!sock) return res.send("Bot starting...");
+
+    try{
+        const code = await sock.requestPairingCode(num);
+        res.send(code);
+    }catch(e){
+        res.send("Error generating code");
+    }
+});
+
+// 🌟🌟🌟 PASTE THE WEBHOOK ROUTE BLOCK DIRECTLY HERE 🌟🌟🌟
+app.post('/webhook/trigger-quiz', express.json(), async (req, res) => {
+    try {
+        const { subject, quizText, answers } = req.body;
+        
+        if (!subject || !answers) {
+            return res.status(400).json({ success: false, error: "Incomplete quiz data payload" });
+        }
+
+        const trigger = await quizEngine.fireQuiz(sock, { subject, quizText, answers });
+        
+        if (trigger.success) {
+            res.json({ success: true, message: "Quiz pushed to group successfully" });
+        } else {
+            res.status(500).json({ success: false, error: trigger.error });
+        }
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// 🚀 PASTE THE NEW ROUTE RIGHT HERE:
+
+app.post("/payment-success", express.json(), async (req, res) => {
+    try {
+        const { phone, plan } = req.body;
+
+        if (!phone) {
+            return res.status(400).json({ success: false, message: "Missing phone details parameters." });
+        }
+
+        const studentJid = `${phone}@s.whatsapp.net`;
+        const paidClassGroupLink = "https://chat.whatsapp.com/JC7W3YORbIr4GtoktECpaU";
+
+        const activationNotice = 
+            `🎉 *FLEXI TUTORS PAYSTACK COMPLIANCE* 🎓\n\n` +
+            `Hello @${phone}, your digital payment verification tracking for *${plan}* is completely successful!\n\n` +
+            `🚀 Premium system access tokens have been deployed straight to your mobile number profile.\n\n` +
+            `👇 *Click the direct link below to jump into the Paid Lectures Group right away:* \n` +
+            `${paidClassGroupLink}\n\n` +
+            `Welcome to the inner circle! Let's get you ready to clear those boards!`;
+
+        await sock.sendMessage(studentJid, { 
+            text: activationNotice,
+            mentions: [studentJid]
+        });
+
+        console.log(`🚀 Automated entry credentials passed cleanly to DM profile: ${phone}`);
+        return res.json({ success: true, message: "Group link dropped successfully." });
+
+    } catch (err) {
+        console.error("❌ Error running WhatsApp automation link callback:", err.message);
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+    
+} // <-- This is the absolute final curly bracket of your startJARVIS function
+
+// ---------------- START ----------------
+app.listen(port, () => {
+   console.log(`Server running on ${port}`);
+   startJARVIS();
+});
+            
