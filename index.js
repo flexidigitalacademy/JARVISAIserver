@@ -262,12 +262,9 @@ async function startJARVIS() {
             "125.0.0"
         ],
 
-        keepAliveIntervalMs:
-            30000,
-
-        connectTimeoutMs:
-            60000,
-
+        connectTimeoutMs: 60000, 
+    defaultQueryTimeoutMs: 60000,
+    keepAliveIntervalMs: 15000,
         syncFullHistory:
             false
     });
