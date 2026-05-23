@@ -321,7 +321,8 @@ _Flexi Educational Consult_ 🚀`,
     // =========================
     // WATCHDOG (FIXED SAFETY + LOWER FALSE POSITIVES)
     // =========================
-    if (jid.endsWith('@g.us') && !isStaff) {
+    if (jid.endsWith('@g.us') && !isStaff &&
+    !m.key.fromMe ) {
 
         const badWords = [
             "rubbish", "mumu", "foolish",
