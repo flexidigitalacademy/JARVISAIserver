@@ -244,10 +244,7 @@ async function startJARVIS() {
         'auth_info'
     );
 
-    const {
-        version
-    } = await fetchLatestBaileysVersion();
-
+    const version = [2, 3000, 1029030078];
     sock = makeWASocket({
         version,
         auth: state,
