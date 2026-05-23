@@ -1,51 +1,141 @@
+// =====================================================
+// FILE: handlers/reactionHandler.js
+// =====================================================
+
 module.exports = async ({
     sock,
     m,
-    text
+    text,
+    jid
 }) => {
 
     try {
 
         if (!text) return;
 
+        // =============================================
+        // STOP BOT MESSAGES
+        // =============================================
+
+        if (
+            m.key.fromMe
+        ) return;
+
+        // =============================================
+        // STOP STATUS
+        // =============================================
+
+        if (
+            jid === "status@broadcast"
+        ) return;
+
+        // =============================================
+        // STOP COMMANDS
+        // =============================================
+
+        if (
+            text.startsWith("!")
+        ) return;
+
+        // =============================================
+        // STOP MEDIA
+        // =============================================
+
+        const isImage =
+            !!m.message?.imageMessage;
+
+        const isVideo =
+            !!m.message?.videoMessage;
+
+        const isSticker =
+            !!m.message?.stickerMessage;
+
+        const isDocument =
+            !!m.message?.documentMessage;
+
+        if (
+            isImage ||
+            isVideo ||
+            isSticker ||
+            isDocument
+        ) return;
+
+        // =============================================
+        // LOWERCASE
+        // =============================================
+
         const lower =
             text.toLowerCase();
 
         // =============================================
-        // AI KEYWORDS
+        // REACTION LOGIC
         // =============================================
 
-        const triggers = [
+        let emoji = null;
 
-            "jarvis",
-            "flexi ai",
-            "@ai"
-        ];
+        // AI Name Mention
+        if (
+            lower.includes("jarvis") ||
 
-        const matched =
-            triggers.some(word =>
-                lower.includes(word)
-            );
+            lower.includes("@ai")
+        ) {
 
-        if (!matched) return;
+            emoji = "🤖";
+        }
+
+        // Greetings
+        else if (
+            lower.includes("good morning")
+        ) {
+
+            emoji = "🌞";
+        }
+
+        else if (
+            lower.includes("good night")
+        ) {
+
+            emoji = "🌙";
+        }
+
+        // Appreciation
+        else if (
+            lower.includes("thanks") ||
+
+            lower.includes("thank you")
+        ) {
+
+            emoji = "❤️";
+        }
+
+        // Surprise
+        else if (
+            lower.includes("wow")
+        ) {
+
+            emoji = "😮";
+        }
 
         // =============================================
-        // REACT
+        // SEND REACTION
         // =============================================
 
-        await sock.sendMessage(
+        if (emoji) {
 
-            m.key.remoteJid,
+            await sock.sendMessage(
 
-            {
-                react: {
+                jid,
 
-                    text: "🤖",
+                {
+                    react: {
 
-                    key: m.key
+                        text: emoji,
+
+                        key: m.key
+                    }
                 }
-            }
-        );
+            );
+        }
 
     } catch (err) {
 
