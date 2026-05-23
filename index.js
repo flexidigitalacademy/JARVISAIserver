@@ -122,9 +122,9 @@ async function downloadMedia(message) {
 
 let sock;
 
-
 // --- BOT START ---
 async function startJARVIS() {
+
     const { state, saveCreds } = await useMultiFileAuthState('auth_info');
     const { version } = await fetchLatestBaileysVersion();
 
@@ -139,58 +139,84 @@ async function startJARVIS() {
         syncFullHistory: false
     });
 
+    // =========================
+    // SAVE CREDS
+    // =========================
     sock.ev.on('creds.update', saveCreds);
 
+    // =========================
+    // CONNECTION HANDLER
+    // =========================
     sock.ev.on('connection.update', (update) => {
+
         const { connection, lastDisconnect } = update;
 
         if (connection === 'close') {
+
             const shouldReconnect =
                 (lastDisconnect?.error instanceof Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
 
-            if (shouldReconnect) startJARVIS();
+            console.log("❌ Connection Closed");
+
+            if (shouldReconnect) {
+                console.log("🔄 Reconnecting...");
+                startJARVIS();
+            }
 
         } else if (connection === 'open') {
+
             console.log(`✅ ${BOT_NAME} Online & Synced`);
         }
     });
-// --- GROUP WELCOME / GOODBYE ---
-sock.ev.on('group-participants.update', async (anu) => {
-    const jid = anu.id;
-    if (!jid) return;
 
-    await new Promise(r => setTimeout(r, 1500));
+    // =========================
+    // GROUP WELCOME / GOODBYE
+    // =========================
+    sock.ev.on('group-participants.update', async (anu) => {
 
-    try {
-        let metadata = groupCache.get(jid);
+        const jid = anu.id;
 
-        if (!metadata) {
-            metadata = await sock.groupMetadata(jid)
-                .catch(() => ({ subject: "this group" }));
-        }
+        if (!jid) return;
 
-        const groupName = metadata.subject;
+        await new Promise(r => setTimeout(r, 1500));
 
-        for (const num of anu.participants) {
+        try {
 
-            // ✅ SAFE NORMALIZATION (string OR object support)
-            const participantJid =
-                typeof num === 'string'
-                    ? num
-                    : num?.id || num?.jid;
+            let metadata = groupCache.get(jid);
 
-            if (!participantJid) continue;
+            if (!metadata) {
+                metadata = await sock.groupMetadata(jid)
+                    .catch(() => ({ subject: "this group" }));
+            }
 
-            // skip bot itself
-            const botJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
-            if (participantJid === botJid) continue;
+            const groupName = metadata.subject;
 
-            const tag = participantJid.split('@')[0];
+            for (const num of anu.participants) {
 
-            // --- JOIN ---
-            if (anu.action === 'add') {
-                await sock.sendMessage(jid, {
-                    text:
+                // SAFE NORMALIZATION
+                const participantJid =
+                    typeof num === 'string'
+                        ? num
+                        : num?.id || num?.jid;
+
+                if (!participantJid) continue;
+
+                // Skip bot itself
+                const botJid =
+                    sock.user.id.split(':')[0] + '@s.whatsapp.net';
+
+                if (participantJid === botJid) continue;
+
+                const tag =
+                    participantJid.split('@')[0];
+
+                // =========================
+                // MEMBER JOINED
+                // =========================
+                if (anu.action === 'add') {
+
+                    await sock.sendMessage(jid, {
+                        text:
 `👋 Hello @${tag}
 
 🎓 *Welcome to ${groupName}*
@@ -211,14 +237,17 @@ Daily revision based on the JAMB/WAEC/PostUTME/JUPEB syllabus with intensive bra
 💡 Read, learn, participate and succeed.
 
 _Powered by Flexi Educational Consult_ 🚀`,
-                    mentions: [participantJid]
-                });
-            }
+                        mentions: [participantJid]
+                    });
+                }
 
-            // --- LEAVE ---
-            else if (anu.action === 'remove') {
-                await sock.sendMessage(jid, {
-                    text:
+                // =========================
+                // MEMBER LEFT
+                // =========================
+                else if (anu.action === 'remove') {
+
+                    await sock.sendMessage(jid, {
+                        text:
 `👋 @${tag} has left *${groupName}*
 
 We appreciate the time spent with us and wish you success in your academics and future examinations 🎓✨
@@ -226,73 +255,129 @@ We appreciate the time spent with us and wish you success in your academics and 
 Keep striving for excellence and never stop learning.
 
 _Flexi Educational Consult_ 🚀`,
-                    mentions: [participantJid]
-                });
+                        mentions: [participantJid]
+                    });
+                }
             }
+
+        } catch (err) {
+
+            console.log(
+                "Automation Error:",
+                err.message
+            );
         }
-
-    } catch (err) {
-        console.log("Automation Error:", err.message);
-    }
-});
-
+    });
 
     // =========================
-    // ANTI STATUS MENTION SYSTEM (FIXED SAFETY)
+    // MESSAGE HANDLER
     // =========================
-    try {
-        const type = m.messageStubType || m.message?.messageStubType;
+    sock.ev.on('messages.upsert', async ({ messages }) => {
 
-        const isStatusMention =
-            type === 'group_mention_notification' ||
-            type === 156 ||
-            type === 0x9c;
+        const m = messages[0];
 
-        if (isStatusMention) {
-            const participant = m.messageStubParameters?.[0];
-            const groupJid = jid;
+        if (!m.message) return;
 
-            if (!participant) return;
+        // Prevent self-replies + status processing
+        if (
+            m.key.fromMe ||
+            m.broadcast ||
+            m.key.remoteJid === 'status@broadcast'
+        ) return;
 
-            await sock.sendMessage(groupJid, {
-                delete: m.key
-            }).catch(() => {});
+        const jid = m.key.remoteJid;
+        const sender = m.key.participant || jid;
 
-            if (!global.db) global.db = { data: { users: {} } };
-            if (!global.db.data.users[participant]) {
-                global.db.data.users[participant] = { warn: 0 };
-            }
+        // =========================
+        // ANTI STATUS MENTION SYSTEM
+        // =========================
+        try {
 
-            global.db.data.users[participant].warn += 1;
+            const type =
+                m.messageStubType ||
+                m.message?.messageStubType;
 
-            const warnCount = global.db.data.users[participant].warn;
-            const maxWarns = 3;
+            const isStatusMention =
+                type === 'group_mention_notification' ||
+                type === 156 ||
+                type === 0x9c;
 
-            const msg =
+            if (isStatusMention) {
+
+                const participant =
+                    m.messageStubParameters?.[0];
+
+                const groupJid = jid;
+
+                if (!participant) return;
+
+                // Delete offending event
+                await sock.sendMessage(groupJid, {
+                    delete: m.key
+                }).catch(() => {});
+
+                // Safe DB init
+                if (!global.db) {
+                    global.db = {
+                        data: {
+                            users: {}
+                        }
+                    };
+                }
+
+                if (!global.db.data.users[participant]) {
+                    global.db.data.users[participant] = {
+                        warn: 0
+                    };
+                }
+
+                // Add warning
+                global.db.data.users[participant].warn += 1;
+
+                const warnCount =
+                    global.db.data.users[participant].warn;
+
+                const maxWarns = 3;
+
+                const msg =
 `*⚠️ JARVIS AI SAFETY SYSTEM ⚠️*
 
-@${participant.split('@')[0]}, tagging this group in status is not allowed.
+@${participant.split('@')[0]},
+tagging this group in status is not allowed.
 
 *Strike:* ${warnCount}/${maxWarns}`;
 
-            await sock.sendMessage(groupJid, {
-                text: msg,
-                mentions: [participant]
-            });
-
-            if (warnCount >= maxWarns) {
                 await sock.sendMessage(groupJid, {
-                    text: `🚫 Final strike reached. Removing user...`
+                    text: msg,
+                    mentions: [participant]
                 });
 
-                await sock.groupParticipantsUpdate(groupJid, [participant], "remove");
+                // Remove after 3 strikes
+                if (warnCount >= maxWarns) {
+
+                    await sock.sendMessage(groupJid, {
+                        text:
+`🚫 Final strike reached.
+Removing user...`
+                    });
+
+                    await sock.groupParticipantsUpdate(
+                        groupJid,
+                        [participant],
+                        "remove"
+                    );
+                }
+
+                return;
             }
 
-            return;
+        } catch (err) {
+
+            console.log(
+                "Anti-status error:",
+                err.message
+            );
         }
-    } catch (err) {
-        console.log("Anti-status error:", err.message);
-    }
 
     // =========================
     // MESSAGE PARSING (FIXED SAFETY)
