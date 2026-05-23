@@ -246,7 +246,7 @@ _Flexi Educational Consult_ 🚀`,
     const jid = m.key.remoteJid;
     const sender = m.key.participant || jid;
         
-
+    }
     // =========================
     // MESSAGE PARSING (FIXED SAFETY)
     // =========================
