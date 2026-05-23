@@ -260,15 +260,19 @@ _Flexi Educational Consult_ 🚀`,
     const isOwner = sender.includes(OWNER_NUMBER);
 
     // 🌟 LIVE QUIZ INTERCEPTOR 🌟
-    // Intercepts and grades students' choice inputs on Saturday nights
-    const wasQuizMessage = await quizEngine.handleLiveMarking(sock, jid, sender, body, m);
-    if (wasQuizMessage) return;
+const wasQuizMessage = await quizEngine.handleLiveMarking(sock, jid, sender, body, m);
+if (wasQuizMessage) return;
         
-    if (text.includes("jarvis") && !text.startsWith("!")) {
-        await sock.sendMessage(jid, {
-            react: { key: m.key, text: "🤖" }
-        });
-    }
+if (
+    !m.key.fromMe &&
+    text.includes("jarvis") &&
+    !text.startsWith("!")
+) {
+
+    await sock.sendMessage(jid, {
+        react: { key: m.key, text: "🤖" }
+    });
+}
 
     // 🕵️‍♂️ AUTOMATED GRAMMAR MONITOR (Modular Interceptor)
     // Runs in the background to automatically correct bad grammar structures
