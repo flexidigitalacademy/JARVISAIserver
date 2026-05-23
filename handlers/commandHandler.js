@@ -1,112 +1,80 @@
-const axios = require("axios");
+const pingCommand =
+require("../commands/ping");
 
-module.exports = async ({
-    sock,
-    m,
-    text,
-    jid
-}) => {
+const imageCommand =
+require("../commands/image");
+
+const aiCommand =
+require("../commands/ai");
+
+const menuCommand =
+require("../commands/menu");
+
+// =====================================================
+// COMMAND ROUTER
+// =====================================================
+
+module.exports = async (ctx) => {
 
     try {
 
+        const {
+            text
+        } = ctx;
+
         if (!text) return;
 
-        const lower =
-            text.toLowerCase();
+        // =============================================
+        // PREFIX CHECK
+        // =============================================
 
-        // =================================================
-        // !PING
-        // =================================================
+        if (
+            !text.startsWith("!")
+        ) return;
 
-        if (lower === "!ping") {
+        const command =
+            text
+                .split(" ")[0]
+                .toLowerCase();
 
-            return await sock.sendMessage(
+        // =============================================
+        // ROUTING
+        // =============================================
 
-                jid,
+        switch(command){
 
-                {
-                    text:
-                        "🏓 Pong!"
-                }
-            );
-        }
+            case "!ping":
 
-        // =================================================
-        // !IMAGE
-        // =================================================
-
-        if (lower.startsWith("!image")) {
-
-            const prompt =
-                text.replace(
-                    /!image/i,
-                    ""
-                ).trim();
-
-            if (!prompt) {
-
-                return await sock.sendMessage(
-
-                    jid,
-
-                    {
-                        text:
-                            "⚠️ Give an image prompt."
-                    }
+                return await pingCommand(
+                    ctx
                 );
-            }
 
-            // =============================================
-            // REACTION
-            // =============================================
+            case "!image":
 
-            await sock.sendMessage(
+                return await imageCommand(
+                    ctx
+                );
 
-                jid,
+            case "!ai":
 
-                {
-                    react: {
+                return await aiCommand(
+                    ctx
+                );
 
-                        text: "🎨",
+            case "!menu":
 
-                        key: m.key
-                    }
-                }
-            );
+                return await menuCommand(
+                    ctx
+                );
 
-            // =============================================
-            // IMAGE URL
-            // =============================================
-
-            const imageUrl =
-`https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true`;
-
-            // =============================================
-            // SEND IMAGE
-            // =============================================
-
-            return await sock.sendMessage(
-
-                jid,
-
-                {
-                    image: {
-                        url: imageUrl
-                    },
-
-                    caption:
-`🖼️ Generated Image
-
-Prompt:
-${prompt}`
-                }
-            );
+            default:
+                return;
         }
 
-    } catch (err) {
+    } catch(err){
 
         console.log(
-            "❌ Command Handler:",
+            "❌ Command Router:",
             err.message
         );
     }
