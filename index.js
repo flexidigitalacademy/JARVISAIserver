@@ -253,7 +253,7 @@ async function startJARVIS() {
         auth: state,
         printQRInTerminal: true,
         logger: pino({
-            level: 'silent'
+            level: 'debug'
         }),
 
         browser: [
