@@ -1035,17 +1035,9 @@ if (command === "!reset") {
     
 
 // ---------------- PAIR ----------------
-app.get('/pair', async (req, res) => {
-    const num = req.query.number?.replace(/[^0-9]/g,'');
-    if(!sock) return res.send("Bot starting...");
+const dashboardRoutes = require('./routes/dashboard');
 
-    try{
-        const code = await sock.requestPairingCode(num);
-        res.send(code);
-    }catch(e){
-        res.send("Error generating code");
-    }
-});
+dashboardRoutes(app, sock, firebaseConfig);
 
 // 🌟🌟🌟 PASTE THE WEBHOOK ROUTE BLOCK DIRECTLY HERE 🌟🌟🌟
 app.post('/webhook/trigger-quiz', express.json(), async (req, res) => {
