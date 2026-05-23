@@ -706,7 +706,7 @@ if (command === "!music") {
 
     try {
         // Calling your dedicated Music Server
-        const response = await axios.post('https://your-music-server.onrender.com/fetch-audio', {
+        const response = await axios.post('https://jarvismusic.onrender.com/fetch-audio', {
             query: songQuery
         }, { 
             responseType: 'arraybuffer',
