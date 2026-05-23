@@ -118,32 +118,6 @@ module.exports = async (ctx) => {
         switch(command){
 
             // =========================================
-            // BASIC
-            // =========================================
-
-            case "!ping":
-
-                return await pingCommand(
-                    ctx
-                );
-
-            // =========================================
-            // AI
-            // =========================================
-
-            case "!ai":
-
-                return await aiCommand(
-                    ctx
-                );
-
-            case "!image":
-
-                return await imageCommand(
-                    ctx
-                );
-
-            // =========================================
             // GENERAL GROUP COMMANDS
             // =========================================
 
@@ -186,72 +160,18 @@ module.exports = async (ctx) => {
                 );
 
             // =========================================
-            // ADMIN COMMANDS
+            // ADMIN GROUP COMMANDS
             // =========================================
+
+            case "!ping":
+
+            case "!ai":
+
+            case "!image":
 
             case "!ginfo":
 
-                if (!isGroup) {
-
-                    return await sock.sendMessage(
-
-                        jid,
-
-                        {
-                            text:
-                                "⚠️ Group only command."
-                        }
-                    );
-                }
-
-                if (!isAdmin) {
-
-                    return await sock.sendMessage(
-
-                        jid,
-
-                        {
-                            text:
-                                "⛔ Admin only command."
-                        }
-                    );
-                }
-
-                return await ginfoCommand(
-                    ctx
-                );
-
             case "!getjid":
-
-                if (!isGroup) {
-
-                    return await sock.sendMessage(
-
-                        jid,
-
-                        {
-                            text:
-                                "⚠️ Group only command."
-                        }
-                    );
-                }
-
-                if (!isAdmin) {
-
-                    return await sock.sendMessage(
-
-                        jid,
-
-                        {
-                            text:
-                                "⛔ Admin only command."
-                        }
-                    );
-                }
-
-                return await getJIDCommand(
-                    ctx
-                );
 
             case "!listonline":
 
@@ -263,7 +183,7 @@ module.exports = async (ctx) => {
 
                         {
                             text:
-                                "⚠️ Group only command."
+                                "⚠️ This command works only in groups."
                         }
                     );
                 }
@@ -281,9 +201,50 @@ module.exports = async (ctx) => {
                     );
                 }
 
-                return await listOnline(
-                    ctx
-                );
+                // =====================================
+                // ADMIN ROUTING
+                // =====================================
+
+                switch(command){
+
+                    case "!ping":
+
+                        return await pingCommand(
+                            ctx
+                        );
+
+                    case "!ai":
+
+                        return await aiCommand(
+                            ctx
+                        );
+
+                    case "!image":
+
+                        return await imageCommand(
+                            ctx
+                        );
+
+                    case "!ginfo":
+
+                        return await ginfoCommand(
+                            ctx
+                        );
+
+                    case "!getjid":
+
+                        return await getJIDCommand(
+                            ctx
+                        );
+
+                    case "!listonline":
+
+                        return await listOnline(
+                            ctx
+                        );
+                }
+
+                break;
 
             // =========================================
             // UNKNOWN COMMAND
