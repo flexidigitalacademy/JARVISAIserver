@@ -141,29 +141,6 @@ async function startJARVIS() {
 
     sock.ev.on('creds.update', saveCreds);
 
-// =========================
-// MESSAGE HANDLER
-// =========================
-sock.ev.on('messages.upsert', async ({ messages }) => {
-
-    const m = messages[0];
-
-    if (!m.message) return;
-
-    // ✅ Prevent self replies & status processing
-    if (
-        m.key.fromMe ||
-        m.broadcast ||
-        m.key.remoteJid === 'status@broadcast'
-    ) return;
-
-    const jid = m.key.remoteJid;
-    const sender = m.key.participant || jid;
-
-    // =========================
-    // PUT ALL YOUR BOT LOGIC BELOW HERE
-    // =========================
-    
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect } = update;
 
@@ -259,6 +236,21 @@ _Flexi Educational Consult_ 🚀`,
     }
 });
 
+    sock.ev.on('messages.upsert', async ({ messages }) => {
+
+    const m = messages[0];
+
+    if (!m.message) return;
+
+    if (
+        m.key.fromMe ||
+        m.broadcast ||
+        m.key.remoteJid === 'status@broadcast'
+    ) return;
+
+    const jid = m.key.remoteJid;
+    const sender = m.key.participant || jid;
+        
     // =========================
     // ANTI STATUS MENTION SYSTEM (FIXED SAFETY)
     // =========================
