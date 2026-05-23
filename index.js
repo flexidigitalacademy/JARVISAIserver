@@ -236,21 +236,7 @@ _Flexi Educational Consult_ 🚀`,
     }
 });
 
-    sock.ev.on('messages.upsert', async ({ messages }) => {
 
-    const m = messages[0];
-
-    if (!m.message) return;
-
-    if (
-        m.key.fromMe ||
-        m.broadcast ||
-        m.key.remoteJid === 'status@broadcast'
-    ) return;
-
-    const jid = m.key.remoteJid;
-    const sender = m.key.participant || jid;
-        
     // =========================
     // ANTI STATUS MENTION SYSTEM (FIXED SAFETY)
     // =========================
