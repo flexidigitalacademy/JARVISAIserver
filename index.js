@@ -702,27 +702,25 @@ if (command === "!music") {
     const songQuery = args.slice(1).join(' ');
     if (!songQuery) return sock.sendMessage(jid, { text: "Please specify a song name." });
 
-    await sock.sendMessage(jid, { text: "🔍 Searching for your music..." });
+    await sock.sendMessage(jid, { text: "🔍 Searching and streaming your music..." });
 
     try {
-        // Calling your dedicated Music Server
-        const response = await axios.post('https://jarvismusic.onrender.com/fetch-audio', {
-            query: songQuery
-        }, { 
-            responseType: 'arraybuffer',
-            timeout: 60000 // 60s timeout for download/transcode
-        });
+        // We use the URL directly now. This offloads all processing 
+        // to your Music Server, which streams the audio instantly.
+        const audioUrl = `https://jarvismusic.onrender.com/play?q=${encodeURIComponent(songQuery)}`;
 
         await sock.sendMessage(jid, { 
-            audio: { data: response.data }, 
-            mimetype: 'audio/mpeg', // or 'audio/mp4'
-            ptt: true 
+            audio: { url: audioUrl }, 
+            mimetype: 'audio/mpeg',
+            ptt: false // Set to true if you want it to appear as a voice note
         });
+
     } catch (error) {
-        console.error("Music Server Error:", error);
-        await sock.sendMessage(jid, { text: "❌ Failed to retrieve the music. Please try again." });
+        console.error("Music Bot Error:", error.message);
+        await sock.sendMessage(jid, { text: "❌ Failed to stream the music. Please try again later." });
     }
-}
+                    }
+        
         
 // --- MENU / HELP COMMAND ---
 if (command === "!menu" || command === "!help") {
