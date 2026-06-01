@@ -359,10 +359,7 @@ tagging this group in status is not allowed.
 
 *Strike:* ${warnCount}/${maxWarns}`;
 
-                await sock.sendMessage(groupJid, {
-                    text: msg,
-                    mentions: [participant]
-                });
+                await sendDelayedReply(sock, groupJid, { text: msg, mentions: [participant] }, m);
 
                 // Remove after 3 strikes
                 if (warnCount >= maxWarns) {
@@ -426,10 +423,7 @@ Removing user...`
                 `@${userTag}, I noticed a minor slip in your structure. Here is the corrected version:\n\n` +
                 `👉 *"${correctedVersion}"*`;
 
-            await sock.sendMessage(jid, { 
-                text: alertPayload, 
-                mentions: [sender] 
-            }, { quoted: m });
+            await sendDelayedReply(sock, jid, { text: alertPayload, mentions: [sender] }, m);
         }
     }
         
