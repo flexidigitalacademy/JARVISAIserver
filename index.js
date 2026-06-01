@@ -269,6 +269,18 @@ _Flexi Educational Consult_ 🚀`,
         }
     });
 
+async function sendDelayedReply(sock, jid, messageContent, m) {
+    // 1. Simulate typing
+    await sock.sendPresenceUpdate('composing', jid);
+    
+    // 2. Random delay between 2 and 4 seconds
+    const delay = Math.floor(Math.random() * (4000 - 2000 + 1) + 2000);
+    await new Promise(resolve => setTimeout(resolve, delay));
+    
+    // 3. Send the message
+    return await sock.sendMessage(jid, messageContent, { quoted: m });
+}
+    
     // =========================
     // MESSAGE HANDLER
     // =========================
